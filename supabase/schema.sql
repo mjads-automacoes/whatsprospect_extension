@@ -1,14 +1,15 @@
 -- WhatsProspect — schema do Supabase
 --
--- Rode este script no SQL Editor do seu projeto Supabase
--- (https://app.supabase.com/project/_/sql) antes de usar a extensão com
--- login habilitado. Cria a tabela de leads com Row Level Security, de
--- forma que cada usuário autenticado só vê/edita os próprios leads.
+-- Rode este script no SQL Editor do projeto Supabase da empresa (o fluxo
+-- de "Conectar com Supabase" das Opções já faz isso automaticamente).
+--
+-- Cada empresa tem o próprio projeto Supabase isolado — por isso a tabela
+-- não depende de login de usuário final (auth.users): a chave anônima do
+-- projeto já é, por si só, o segredo que separa uma empresa da outra.
 
 create table if not exists public.leads (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  dedupe_key text not null,
+  dedupe_key text not null unique,
   nome text,
   telefone text,
   cidade text,
@@ -19,30 +20,17 @@ create table if not exists public.leads (
   origem_link text,
   palavra_chave text,
   prospectado_em timestamptz not null default now(),
-  atualizado_em timestamptz not null default now(),
-  unique (user_id, dedupe_key)
+  atualizado_em timestamptz not null default now()
 );
 
 alter table public.leads enable row level security;
 
-drop policy if exists "leads_select_own" on public.leads;
-create policy "leads_select_own"
-  on public.leads for select
-  using (auth.uid() = user_id);
-
-drop policy if exists "leads_insert_own" on public.leads;
-create policy "leads_insert_own"
-  on public.leads for insert
-  with check (auth.uid() = user_id);
-
-drop policy if exists "leads_update_own" on public.leads;
-create policy "leads_update_own"
-  on public.leads for update
-  using (auth.uid() = user_id);
-
-drop policy if exists "leads_delete_own" on public.leads;
-create policy "leads_delete_own"
-  on public.leads for delete
-  using (auth.uid() = user_id);
-
-create index if not exists leads_user_id_idx on public.leads (user_id);
+-- Qualquer requisição autenticada com a chave anônima deste projeto pode
+-- ler/escrever — o isolamento entre empresas já é feito pelo projeto em
+-- si (cada uma tem sua própria URL + chave), não por linha.
+drop policy if exists "leads_all_anon" on public.leads;
+create policy "leads_all_anon"
+  on public.leads for all
+  to anon, authenticated
+  using (true)
+  with check (true);

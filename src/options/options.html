@@ -12,52 +12,34 @@
     <section class="card">
       <h2>Sincronizar leads na nuvem (opcional)</h2>
       <p class="text-muted">
-        Conecte um projeto <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>
-        grátis pra guardar os leads encontrados com login Google. Sem isso,
-        a extensão funciona normalmente e guarda os leads só neste
+        Conecte um banco <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>
+        grátis, só seu, pra guardar os leads encontrados. Sem isso, a
+        extensão funciona normalmente e guarda os leads só neste
         navegador.
       </p>
 
-      <label for="patInput">Personal Access Token do Supabase</label>
-      <input id="patInput" type="password" placeholder="sbp_..." autocomplete="off" />
-      <p class="text-muted small">
-        Crie um em <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener">supabase.com/dashboard/account/tokens</a>.
-      </p>
-
-      <label for="orgSelect">Organização</label>
-      <select id="orgSelect"><option value="">Cole o token acima para carregar</option></select>
-
-      <label for="projectNameInput">Nome do projeto</label>
-      <input id="projectNameInput" type="text" value="whatsprospect" />
-
-      <details class="collapsible">
-        <summary>Login com Google (opcional)</summary>
+      <div id="disconnectedView">
+        <button id="connectBtn" type="button" class="primary-btn">Conectar com Supabase</button>
         <p class="text-muted small">
-          Crie um Client ID/Secret OAuth no
-          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>
-          (esse passo é manual — nenhuma ferramenta consegue criar isso por
-          você, é uma trava de segurança do próprio Google) e cole abaixo
-          pra extensão configurar sozinha no Supabase.
+          Abre uma tela de login do Supabase. Ao aprovar, a extensão cria
+          seu banco de dados automaticamente — sem precisar copiar token,
+          rodar SQL ou configurar nada manualmente.
         </p>
-        <label for="googleClientIdInput">Google Client ID</label>
-        <input id="googleClientIdInput" type="text" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" />
-        <label for="googleClientSecretInput">Google Client Secret</label>
-        <input id="googleClientSecretInput" type="password" placeholder="GOCSPX-..." autocomplete="off" />
-      </details>
+      </div>
 
-      <button id="provisionBtn" type="button" class="primary-btn">Provisionar automaticamente</button>
+      <div id="connectedView" class="hidden">
+        <p class="text-muted">✅ Conectado — os leads encontrados são salvos automaticamente na nuvem.</p>
+        <button id="disconnectBtn" type="button" class="danger-btn">Desconectar</button>
+      </div>
 
       <div id="provisionSteps" class="provision-steps hidden"></div>
+      <p id="supabaseStatus" class="status-msg"></p>
 
       <details class="collapsible">
         <summary>Já tenho um projeto Supabase (configurar manualmente)</summary>
         <ol class="text-muted setup-steps">
           <li>No SQL Editor do seu projeto, rode <code>supabase/schema.sql</code> deste repositório.</li>
-          <li>Em <strong>Authentication → Providers → Google</strong>, habilite o provedor com seu Client ID/Secret.</li>
-          <li>
-            Em <strong>Authentication → URL Configuration → Redirect URLs</strong>, adicione:
-            <span class="mono-box" id="redirectUrlBox">carregando...</span>
-          </li>
+          <li>Copie a URL do projeto e a chave anônima em Project Settings → API.</li>
         </ol>
         <label for="supabaseUrlInput">URL do projeto</label>
         <input id="supabaseUrlInput" type="text" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" />
@@ -66,8 +48,6 @@
         <button id="toggleSupabaseKeyBtn" type="button" class="secondary-btn small">Mostrar</button>
         <button id="saveSupabaseBtn" type="button" class="primary-btn small">Salvar</button>
       </details>
-
-      <p id="supabaseStatus" class="status-msg"></p>
     </section>
 
     <section class="card">

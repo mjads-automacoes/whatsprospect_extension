@@ -22,7 +22,6 @@ import {
 import { formatBrazilianPhone, isValidBrazilianPhone } from '../lib/phoneUtils.js';
 import { dedupeKey } from '../lib/dedupe.js';
 import { getHistory, addLeadsToHistory, getSettings } from '../lib/storage.js';
-import { getSession, ensureValidAccessToken, signInWithGoogle, signOut } from '../lib/supabaseAuth.js';
 import { upsertLeads } from '../lib/supabaseLeads.js';
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -119,20 +118,9 @@ async function syncLeadsToSupabase(job) {
     const settings = await getSettings();
     if (!settings.supabaseUrl || !settings.supabaseAnonKey) return;
 
-    const session = await getSession();
-    if (!session?.user?.id) return;
-
-    const accessToken = await ensureValidAccessToken(settings.supabaseUrl, settings.supabaseAnonKey);
-    if (!accessToken) return;
-
     const leadsWithKeys = job.leads.map((lead) => ({ key: dedupeKey(lead), lead }));
     await upsertLeads(
-      {
-        supabaseUrl: settings.supabaseUrl,
-        anonKey: settings.supabaseAnonKey,
-        accessToken,
-        userId: session.user.id,
-      },
+      { supabaseUrl: settings.supabaseUrl, anonKey: settings.supabaseAnonKey },
       leadsWithKeys
     );
   } catch (error) {
@@ -166,21 +154,6 @@ async function handleBlocked(senderTabId) {
   job.status = JOB_STATUS.PAUSED_BLOCKED;
   await saveJob(job);
   await chrome.tabs.update(job.tabId, { active: true });
-}
-
-async function handleSignIn() {
-  try {
-    const settings = await getSettings();
-    const session = await signInWithGoogle(settings.supabaseUrl);
-    return { ok: true, user: session.user };
-  } catch (error) {
-    return { ok: false, error: error.message };
-  }
-}
-
-async function handleSignOut() {
-  await signOut();
-  return { ok: true };
 }
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -225,14 +198,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'MAPS_BLOCKED':
       handleBlocked(tabId).then(() => sendResponse({ ok: true }));
-      return true;
-
-    case 'SUPABASE_SIGN_IN':
-      handleSignIn().then(sendResponse);
-      return true;
-
-    case 'SUPABASE_SIGN_OUT':
-      handleSignOut().then(sendResponse);
       return true;
 
     case 'SEND_TO_WEBHOOK':

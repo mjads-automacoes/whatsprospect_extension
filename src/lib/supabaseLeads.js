@@ -1,10 +1,11 @@
 // Sincronização de leads com a tabela `public.leads` no Supabase
-// (ver supabase/schema.sql). Protegida por Row Level Security: cada
-// usuário só lê/escreve os próprios leads (auth.uid() = user_id).
+// (ver supabase/schema.sql). Cada empresa tem o próprio projeto Supabase
+// (criado via Opções → Conectar com Supabase), então o isolamento entre
+// empresas acontece no nível do projeto — não precisa de login de usuário
+// final dentro da extensão, só da chave anônima daquele projeto.
 
-function toRow(lead, dedupeKeyValue, userId) {
+function toRow(lead, dedupeKeyValue) {
   return {
-    user_id: userId,
     dedupe_key: dedupeKeyValue,
     nome: lead.nome || '',
     telefone: lead.telefone || '',
@@ -20,23 +21,23 @@ function toRow(lead, dedupeKeyValue, userId) {
 }
 
 /**
- * Envia leads para o Supabase usando upsert (merge por user_id+dedupe_key),
- * para não duplicar quando a mesma empresa aparecer em buscas futuras.
+ * Envia leads para o Supabase usando upsert (merge por dedupe_key), para
+ * não duplicar quando a mesma empresa aparecer em buscas futuras.
  *
- * @param {{supabaseUrl: string, anonKey: string, accessToken: string, userId: string}} auth
+ * @param {{supabaseUrl: string, anonKey: string}} project
  * @param {Array<{key: string, lead: object}>} leadsWithKeys
  */
-export async function upsertLeads({ supabaseUrl, anonKey, accessToken, userId }, leadsWithKeys) {
+export async function upsertLeads({ supabaseUrl, anonKey }, leadsWithKeys) {
   if (!leadsWithKeys.length) return;
 
-  const rows = leadsWithKeys.map(({ key, lead }) => toRow(lead, key, userId));
+  const rows = leadsWithKeys.map(({ key, lead }) => toRow(lead, key));
 
   const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/leads`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       apikey: anonKey,
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${anonKey}`,
       Prefer: 'resolution=merge-duplicates,return=minimal',
     },
     body: JSON.stringify(rows),
@@ -49,16 +50,16 @@ export async function upsertLeads({ supabaseUrl, anonKey, accessToken, userId },
 }
 
 /**
- * Busca todos os leads do usuário autenticado (mais recentes primeiro).
- * Útil para um botão futuro de "sincronizar/exportar da nuvem".
+ * Busca todos os leads salvos no projeto. Útil para um botão futuro de
+ * "sincronizar/exportar da nuvem".
  */
-export async function fetchAllLeads({ supabaseUrl, anonKey, accessToken }) {
+export async function fetchAllLeads({ supabaseUrl, anonKey }) {
   const response = await fetch(
     `${supabaseUrl.replace(/\/$/, '')}/rest/v1/leads?select=*&order=prospectado_em.desc`,
     {
       headers: {
         apikey: anonKey,
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${anonKey}`,
       },
     }
   );

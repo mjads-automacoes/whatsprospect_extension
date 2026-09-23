@@ -115,14 +115,17 @@ whatsprospect_extension/
 │       ├── csv.js                # geração do arquivo CSV
 │       ├── storage.js            # configurações + histórico (chrome.storage)
 │       ├── mapsJob.js            # estado do job de scraping do Maps
-│       ├── supabaseAuth.js       # login Google via Supabase Auth (chrome.identity)
+│       ├── oauthConfig.js        # Client ID + URL da Edge Function (preenchido pelo mantenedor)
+│       ├── supabaseConnect.js    # fluxo OAuth+PKCE "Conectar com Supabase"
 │       ├── supabaseLeads.js      # sincronização de leads com o Supabase
-│       ├── supabaseManagementApi.js  # provisionamento automático via Management API
+│       ├── supabaseManagementApi.js  # criação automática do projeto via Management API
 │       ├── supabaseSchema.js     # SQL do schema embutido (usado pelo provisionamento)
 │       ├── placesApi.js          # cliente da Google Places API (New) — não usado por padrão
 │       └── search.js             # orquestrador via Places API — não usado por padrão
 ├── supabase/
-│   └── schema.sql                # tabela de leads + Row Level Security
+│   ├── schema.sql                       # tabela de leads + Row Level Security
+│   └── functions/oauth-exchange/        # Edge Function: troca o code OAuth por token
+│       └── index.ts                     # (guarda o Client Secret; nunca vai na extensão)
 └── README.md
 ```
 
@@ -148,74 +151,82 @@ whatsprospect_extension/
 6. Revise os resultados na tabela (atualizados em tempo real) e clique em
    **Exportar CSV** quando quiser.
 
-## Sincronização com Supabase (opcional, login com Google)
+## Sincronização com Supabase (opcional)
 
 Por padrão os leads ficam só no `chrome.storage.local` do navegador onde a
-extensão roda. Se você quiser um histórico centralizado na nuvem (acessível
-de qualquer computador, base para futuras integrações com N8N/CRM), pode
-conectar um projeto [Supabase](https://supabase.com) gratuito, por dois
-caminhos:
+extensão roda. Se você quiser um histórico centralizado na nuvem, cada
+empresa que usar a extensão pode conectar o **próprio banco Supabase
+gratuito**, isolado dos leads de qualquer outra empresa.
 
-### Opção A — Provisionamento automático (Opções → Sincronização com Supabase)
+### Experiência de quem instala a extensão
 
-1. Gere um **Personal Access Token** em
-   [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
-   (de preferência com escopo limitado a um projeto/organização, não o token
-   "classic" de acesso total).
-2. Cole esse token nas **Opções** da extensão, escolha a organização e
-   clique em **Provisionar automaticamente**. Isso cria o projeto, roda o
-   `supabase/schema.sql`, busca as chaves da API e registra a URL de
-   redirecionamento — tudo via
-   [Management API](https://supabase.com/docs/reference/api/introduction) do
-   Supabase, sem você abrir o painel manualmente.
-3. O único passo que **não tem como ser automatizado** (trava de segurança
-   do próprio Google, nenhuma ferramenta de terceiros pode contornar): criar
-   um **Client ID/Secret OAuth** no
-   [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-   (tipo "Aplicativo Web"). Se você colar esse Client ID/Secret nos campos
-   opcionais da tela de provisionamento, a extensão configura o provedor
-   Google no Supabase para você; só a criação em si no Google Cloud é
-   manual.
-4. No popup, clique em **Entrar com Google**.
+Não precisa entender Supabase, copiar token nem rodar SQL. É só:
 
-> ⚠️ Esse fluxo automático chama endpoints da Management API do Supabase
-> (`api.supabase.com`) cujos nomes de campo exatos (principalmente na
-> configuração de Auth/redirect URLs) foram reconstruídos a partir de
-> documentação pública e podem ter mudado. Cada etapa mostra o erro cru da
-> API se algo falhar, e as etapas já concluídas (projeto, schema, chaves)
-> não são perdidas — só a etapa que falhar precisa ser refeita manualmente
-> pela Opção B.
+1. Abrir **Opções** da extensão.
+2. Clicar em **"Conectar com Supabase"**.
+3. Fazer login (ou criar conta, se ainda não tiver) na tela que abre —
+   é a tela oficial do Supabase, não algo da extensão.
+4. Pronto. A extensão cria o banco de dados da empresa automaticamente
+   (projeto + tabela) e passa a sincronizar os leads encontrados a partir
+   daí.
 
-### Opção B — Configuração manual
+Como cada empresa tem seu próprio projeto Supabase, a separação de dados
+entre empresas diferentes acontece **no nível do projeto** — por isso não
+existe (nem é preciso) tela de login dentro da extensão em si.
 
-1. Crie um projeto em [app.supabase.com](https://app.supabase.com).
-2. No **SQL Editor** do projeto, rode o conteúdo de `supabase/schema.sql`
-   deste repositório — cria a tabela `leads` com Row Level Security (cada
-   usuário só vê os próprios dados).
-3. Em **Authentication → Providers → Google**, habilite o provedor e
-   informe um Client ID/Secret OAuth do
-   [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-   (tipo "Aplicativo Web"), usando o redirect URI de callback que o próprio
-   Supabase exibe naquela tela.
-4. Em **Authentication → URL Configuration → Redirect URLs**, adicione a
-   URL da extensão — a Options page mostra o valor exato
-   (`chrome.identity.getRedirectURL()`). Como o `manifest.json` já tem um
-   campo `"key"` fixo, essa URL é sempre:
-   `https://lejbdcmemfjnhnkjbilkdcobanlaobmf.chromiumapp.org/`
-   (só muda se você recarregar a extensão a partir de outra chave).
-5. Abra as **Opções** da extensão, cole a URL do projeto Supabase e a
-   **chave anônima (anon/public key)** — ambas em Project Settings → API no
-   painel do Supabase — e salve.
-6. No popup, clique em **Entrar com Google**. A partir daí, cada busca
-   concluída sincroniza os leads (por `upsert`, sem duplicar) com a tabela
-   `leads` do seu projeto.
+### Setup do mantenedor (você, uma única vez)
 
-> A chave privada RSA usada para gerar esse `"key"` fixo no manifest não
-> fica no repositório (nunca comite chaves privadas). Ela só é necessária
-> se algum dia você quiser empacotar a extensão como `.crx` mantendo o
-> mesmo ID — guarde-a separadamente se for esse o caso.
+Para o botão "Conectar com Supabase" funcionar para todo mundo que instalar
+a extensão, alguém precisa registrar uma única aplicação OAuth e publicar
+uma função intermediária que guarda o segredo dela. Isso é feito **uma
+vez**, não a cada instalação:
 
-Isso é **totalmente opcional**: sem configurar nada aqui, a extensão
+1. **Registre um OAuth App do Supabase** (o que autoriza a extensão a criar
+   projetos em nome de quem clicar em "Conectar"):
+   - No painel do Supabase, vá em **Organization → Settings → OAuth Apps →
+     Add application**.
+   - Redirect URL: `https://lejbdcmemfjnhnkjbilkdcobanlaobmf.chromiumapp.org/`
+     (fixa, porque o `manifest.json` já tem uma chave `"key"` pinada — veja
+     a nota mais abaixo).
+   - Copie o **Client ID** gerado — ele é público, vai direto no código da
+     extensão. Guarde o **Client Secret** para o próximo passo (ele NUNCA
+     entra no código da extensão).
+
+2. **Publique a Edge Function** que guarda esse Client Secret e faz a troca
+   OAuth por você (`supabase/functions/oauth-exchange/`). Pode usar
+   qualquer projeto Supabase seu, inclusive um pequeno só para isso:
+   ```bash
+   npx supabase login
+   npx supabase functions deploy oauth-exchange --project-ref SEU_PROJECT_REF --no-verify-jwt
+   npx supabase secrets set OAUTH_CLIENT_ID=xxxx OAUTH_CLIENT_SECRET=yyyy --project-ref SEU_PROJECT_REF
+   ```
+   A URL pública da function fica algo como
+   `https://SEU_PROJECT_REF.supabase.co/functions/v1/oauth-exchange`.
+
+3. **Preencha `src/lib/oauthConfig.js`** com o Client ID (passo 1) e a URL
+   da function (passo 2), e publique essa versão da extensão. A partir daí,
+   qualquer instalação já nasce com o botão "Conectar com Supabase"
+   funcionando, sem nenhum passo extra.
+
+> Por que precisa dessa function e não dá pra fazer 100% dentro da
+> extensão? A troca do código OAuth por um token de acesso exige enviar o
+> Client Secret — e um Client Secret nunca pode estar dentro do código de
+> uma extensão distribuída (qualquer pessoa consegue abrir e extrair). A
+> Edge Function é a única peça que conhece esse segredo; ela não guarda
+> nenhum dado de cliente, só repassa essa troca.
+
+> A chave privada RSA usada para o `"key"` fixo no `manifest.json` (que
+> mantém a URL de redirecionamento estável) não fica no repositório — nunca
+> comite chaves privadas.
+
+### Já tenho um projeto Supabase
+
+Nas Opções, dentro de "Já tenho um projeto Supabase (configurar
+manualmente)", dá pra colar a URL e a chave anônima de um projeto criado
+por fora (depois de rodar `supabase/schema.sql` nele), sem passar pelo
+fluxo OAuth.
+
+Tudo isso é **totalmente opcional**: sem conectar nada, a extensão
 continua funcionando exatamente como antes, só com o histórico local.
 
 ## Roadmap / preparado para o futuro

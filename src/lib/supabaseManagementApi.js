@@ -1,16 +1,8 @@
 // Cliente para a Supabase Management API (https://api.supabase.com/v1),
-// usado para provisionar automaticamente um projeto Supabase a partir de
-// um Personal Access Token colado pelo usuário nas Opções.
-//
-// AVISO DE PRECISÃO: alguns campos aqui (principalmente os nomes usados em
-// PATCH /config/auth para redirect URLs e provedor Google) foram
-// reconstruídos a partir da convenção de variáveis de ambiente do GoTrue
-// (o serviço de auth por trás do Supabase) e de buscas na documentação,
-// porque o acesso direto à documentação da Supabase não estava disponível
-// no ambiente onde este código foi escrito. Se algum desses campos tiver
-// mudado, a chamada correspondente falha com o erro cru da API (ver
-// `mgmtFetch`), o que facilita ajustar só aquele trecho sem afetar o
-// resto do provisionamento.
+// usado para provisionar automaticamente um projeto Supabase por empresa.
+// O bearer token aceito aqui pode ser tanto um Personal Access Token
+// quanto um access token obtido via OAuth (src/lib/supabaseConnect.js) —
+// a Management API trata os dois da mesma forma.
 
 const BASE_URL = 'https://api.supabase.com/v1';
 
@@ -87,44 +79,6 @@ export function pickPublicApiKey(apiKeys) {
   const entries = Array.isArray(apiKeys) ? apiKeys : [];
   const publicKey = entries.find((k) => !/service_role|secret/i.test(k.name || k.type || ''));
   return publicKey?.api_key || publicKey?.apiKey || null;
-}
-
-export async function getAuthConfig(pat, ref) {
-  return mgmtFetch(pat, `/projects/${ref}/config/auth`);
-}
-
-export async function addRedirectUrl(pat, ref, redirectUrl) {
-  const current = await getAuthConfig(pat, ref);
-  const existing = (current.URI_ALLOW_LIST || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (!existing.includes(redirectUrl)) {
-    existing.push(redirectUrl);
-  }
-
-  return mgmtFetch(pat, `/projects/${ref}/config/auth`, {
-    method: 'PATCH',
-    body: JSON.stringify({ URI_ALLOW_LIST: existing.join(',') }),
-  });
-}
-
-/**
- * Melhor esforço: configura o provedor Google no Supabase Auth com um
- * Client ID/Secret que o usuário já criou manualmente no Google Cloud
- * Console (isso não tem como ser automatizado — ver README).
- */
-export async function configureGoogleProvider(pat, ref, { clientId, clientSecret }) {
-  if (!clientId || !clientSecret) return null;
-  return mgmtFetch(pat, `/projects/${ref}/config/auth`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      EXTERNAL_GOOGLE_ENABLED: true,
-      EXTERNAL_GOOGLE_CLIENT_ID: clientId,
-      EXTERNAL_GOOGLE_SECRET: clientSecret,
-    }),
-  });
 }
 
 export function generateDbPassword() {

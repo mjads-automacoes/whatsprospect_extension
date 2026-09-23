@@ -1,5 +1,5 @@
 import { getSettings, saveSettings, historyCount, clearHistory } from '../lib/storage.js';
-import { getRedirectUrl } from '../lib/supabaseAuth.js';
+import { connect, disconnect, ensureValidManagementToken } from '../lib/supabaseConnect.js';
 import {
   listOrganizations,
   createProject,
@@ -7,8 +7,6 @@ import {
   runSql,
   getApiKeys,
   pickPublicApiKey,
-  addRedirectUrl,
-  configureGoogleProvider,
   generateDbPassword,
 } from '../lib/supabaseManagementApi.js';
 import { SCHEMA_SQL } from '../lib/supabaseSchema.js';
@@ -16,27 +14,31 @@ import { SCHEMA_SQL } from '../lib/supabaseSchema.js';
 const els = {
   historyCount: document.getElementById('historyCount'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
-  redirectUrlBox: document.getElementById('redirectUrlBox'),
   supabaseUrlInput: document.getElementById('supabaseUrlInput'),
   supabaseAnonKeyInput: document.getElementById('supabaseAnonKeyInput'),
   toggleSupabaseKeyBtn: document.getElementById('toggleSupabaseKeyBtn'),
   saveSupabaseBtn: document.getElementById('saveSupabaseBtn'),
   supabaseStatus: document.getElementById('supabaseStatus'),
-  patInput: document.getElementById('patInput'),
-  orgSelect: document.getElementById('orgSelect'),
-  projectNameInput: document.getElementById('projectNameInput'),
-  googleClientIdInput: document.getElementById('googleClientIdInput'),
-  googleClientSecretInput: document.getElementById('googleClientSecretInput'),
-  provisionBtn: document.getElementById('provisionBtn'),
+  disconnectedView: document.getElementById('disconnectedView'),
+  connectedView: document.getElementById('connectedView'),
+  connectBtn: document.getElementById('connectBtn'),
+  disconnectBtn: document.getElementById('disconnectBtn'),
   provisionSteps: document.getElementById('provisionSteps'),
 };
+
+async function renderConnectionState() {
+  const settings = await getSettings();
+  const isConnected = Boolean(settings.supabaseUrl && settings.supabaseAnonKey);
+  els.disconnectedView.classList.toggle('hidden', isConnected);
+  els.connectedView.classList.toggle('hidden', !isConnected);
+}
 
 async function loadSettings() {
   const settings = await getSettings();
   els.supabaseUrlInput.value = settings.supabaseUrl || '';
   els.supabaseAnonKeyInput.value = settings.supabaseAnonKey || '';
   els.historyCount.textContent = await historyCount();
-  els.redirectUrlBox.textContent = getRedirectUrl();
+  await renderConnectionState();
 }
 
 els.toggleSupabaseKeyBtn.addEventListener('click', () => {
@@ -50,8 +52,9 @@ els.saveSupabaseBtn.addEventListener('click', async () => {
   const supabaseAnonKey = els.supabaseAnonKeyInput.value.trim();
   try {
     await saveSettings({ supabaseUrl, supabaseAnonKey });
-    els.supabaseStatus.textContent = 'Configuração salva. Volte ao popup para entrar com Google.';
+    els.supabaseStatus.textContent = 'Configuração salva.';
     els.supabaseStatus.classList.remove('error');
+    await renderConnectionState();
   } catch (error) {
     els.supabaseStatus.textContent = `Erro ao salvar: ${error.message}`;
     els.supabaseStatus.classList.add('error');
@@ -63,31 +66,6 @@ els.clearHistoryBtn.addEventListener('click', async () => {
   await clearHistory();
   els.historyCount.textContent = '0';
 });
-
-let loadedOrgs = [];
-
-async function loadOrganizations() {
-  const pat = els.patInput.value.trim();
-  els.orgSelect.innerHTML = '<option value="">Carregando...</option>';
-  if (!pat) {
-    els.orgSelect.innerHTML = '<option value="">Cole o token acima para carregar</option>';
-    return;
-  }
-  try {
-    loadedOrgs = await listOrganizations(pat);
-    if (!loadedOrgs.length) {
-      els.orgSelect.innerHTML = '<option value="">Nenhuma organização encontrada</option>';
-      return;
-    }
-    els.orgSelect.innerHTML = loadedOrgs
-      .map((org, i) => `<option value="${i}">${org.name || org.slug || org.id}</option>`)
-      .join('');
-  } catch (error) {
-    els.orgSelect.innerHTML = `<option value="">Erro: ${error.message}</option>`;
-  }
-}
-
-els.patInput.addEventListener('blur', loadOrganizations);
 
 function addProvisionStep(label) {
   els.provisionSteps.classList.remove('hidden');
@@ -108,97 +86,106 @@ function addProvisionStep(label) {
   };
 }
 
-els.provisionBtn.addEventListener('click', async () => {
-  const pat = els.patInput.value.trim();
-  const org = loadedOrgs[Number(els.orgSelect.value)];
-  const projectName = els.projectNameInput.value.trim() || 'whatsprospect';
-  const googleClientId = els.googleClientIdInput.value.trim();
-  const googleClientSecret = els.googleClientSecretInput.value.trim();
-  const redirectUrl = getRedirectUrl();
+els.connectBtn.addEventListener('click', async () => {
+  els.connectBtn.disabled = true;
+  els.provisionSteps.innerHTML = '';
+  els.provisionSteps.classList.remove('hidden');
+  els.supabaseStatus.textContent = '';
+  els.supabaseStatus.classList.remove('error');
 
-  if (!pat || !org) {
-    alert('Cole o Personal Access Token e selecione uma organização primeiro.');
+  const stepConnect = addProvisionStep('Conectando com sua conta Supabase...');
+  let accessToken;
+  try {
+    await connect();
+    accessToken = await ensureValidManagementToken();
+    if (!accessToken) throw new Error('Não foi possível obter acesso à sua conta.');
+    stepConnect.success();
+  } catch (error) {
+    stepConnect.error(error.message);
+    els.connectBtn.disabled = false;
     return;
   }
 
-  els.provisionBtn.disabled = true;
-  els.provisionSteps.innerHTML = '';
+  const stepOrg = addProvisionStep('Localizando sua organização...');
+  let org;
+  try {
+    const orgs = await listOrganizations(accessToken);
+    if (!orgs.length) throw new Error('Nenhuma organização encontrada na sua conta.');
+    org = orgs[0];
+    stepOrg.success(org.name || org.slug || org.id);
+  } catch (error) {
+    stepOrg.error(error.message);
+    els.connectBtn.disabled = false;
+    return;
+  }
 
   let ref;
-  let anonKey;
-
-  const stepCreate = addProvisionStep('Criando projeto...');
+  const stepCreate = addProvisionStep('Criando seu banco de dados...');
   try {
-    const project = await createProject(pat, {
-      name: projectName,
+    const project = await createProject(accessToken, {
+      name: 'whatsprospect',
       organizationSlug: org.slug || org.id,
       dbPass: generateDbPassword(),
     });
     ref = project.id || project.ref;
-    stepCreate.success(ref);
+    stepCreate.success();
   } catch (error) {
     stepCreate.error(error.message);
-    els.provisionBtn.disabled = false;
+    els.connectBtn.disabled = false;
     return;
   }
 
-  const stepActive = addProvisionStep('Aguardando o projeto ficar ativo (pode levar ~2 minutos)...');
+  const stepActive = addProvisionStep('Aguardando o banco ficar pronto (pode levar ~2 minutos)...');
   try {
-    await waitForProjectActive(pat, ref);
+    await waitForProjectActive(accessToken, ref);
     stepActive.success();
   } catch (error) {
     stepActive.error(error.message);
-    els.provisionBtn.disabled = false;
+    els.connectBtn.disabled = false;
     return;
   }
 
-  const stepSql = addProvisionStep('Criando a tabela de leads (schema.sql)...');
+  const stepSql = addProvisionStep('Preparando a tabela de leads...');
   try {
-    await runSql(pat, ref, SCHEMA_SQL);
+    await runSql(accessToken, ref, SCHEMA_SQL);
     stepSql.success();
   } catch (error) {
     stepSql.error(error.message);
-    // Continua mesmo assim — o resto do provisionamento ainda é útil.
+    // Continua mesmo assim — as chaves já são úteis para configuração manual.
   }
 
-  const stepKeys = addProvisionStep('Buscando as chaves da API...');
+  const stepKeys = addProvisionStep('Finalizando...');
   try {
-    const apiKeys = await getApiKeys(pat, ref);
-    anonKey = pickPublicApiKey(apiKeys);
+    const apiKeys = await getApiKeys(accessToken, ref);
+    const anonKey = pickPublicApiKey(apiKeys);
     if (!anonKey) throw new Error('Nenhuma chave pública encontrada na resposta.');
-    stepKeys.success();
 
     const supabaseUrl = `https://${ref}.supabase.co`;
     await saveSettings({ supabaseUrl, supabaseAnonKey: anonKey });
     els.supabaseUrlInput.value = supabaseUrl;
     els.supabaseAnonKeyInput.value = anonKey;
+    stepKeys.success();
   } catch (error) {
     stepKeys.error(error.message);
-    els.provisionBtn.disabled = false;
+    els.connectBtn.disabled = false;
     return;
   }
 
-  const stepRedirect = addProvisionStep('Registrando a URL de redirecionamento...');
-  try {
-    await addRedirectUrl(pat, ref, redirectUrl);
-    stepRedirect.success();
-  } catch (error) {
-    stepRedirect.error(`${error.message} — adicione manualmente em Authentication → URL Configuration.`);
-  }
+  els.supabaseStatus.textContent = 'Tudo pronto! Os leads encontrados agora são salvos na nuvem automaticamente.';
+  els.connectBtn.disabled = false;
+  await renderConnectionState();
+});
 
-  if (googleClientId && googleClientSecret) {
-    const stepGoogle = addProvisionStep('Configurando o provedor Google...');
-    try {
-      await configureGoogleProvider(pat, ref, { clientId: googleClientId, clientSecret: googleClientSecret });
-      stepGoogle.success();
-    } catch (error) {
-      stepGoogle.error(`${error.message} — configure manualmente em Authentication → Providers → Google.`);
-    }
-  }
-
-  els.supabaseStatus.textContent = 'Provisionamento concluído. Volte ao popup e clique em "Entrar com Google".';
-  els.supabaseStatus.classList.remove('error');
-  els.provisionBtn.disabled = false;
+els.disconnectBtn.addEventListener('click', async () => {
+  if (!confirm('Desconectar? Os leads já sincronizados continuam no seu Supabase, mas novas buscas não serão mais enviadas pra lá.')) return;
+  await disconnect();
+  await saveSettings({ supabaseUrl: '', supabaseAnonKey: '' });
+  els.supabaseUrlInput.value = '';
+  els.supabaseAnonKeyInput.value = '';
+  els.provisionSteps.classList.add('hidden');
+  els.provisionSteps.innerHTML = '';
+  els.supabaseStatus.textContent = '';
+  await renderConnectionState();
 });
 
 loadSettings();
