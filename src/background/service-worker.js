@@ -30,6 +30,24 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
+// O content script dispara MAPS_LEAD_FOUND e MAPS_QUERY_DONE sem esperar
+// um pelo outro (fire-and-forget), então os handlers abaixo podem ser
+// chamados quase simultaneamente. Como cada um faz getJob() -> modifica
+// -> saveJob() sobre chrome.storage.local, duas execuções concorrentes
+// causam "lost update": a segunda grava por cima de um job lido antes da
+// primeira salvar, perdendo o que a primeira tinha acabado de adicionar
+// (ex.: um lead encontrado, ou o avanço do comboIndex). Esta fila garante
+// que só uma mutação de job rode por vez.
+let jobMutationQueue = Promise.resolve();
+function withJobLock(fn) {
+  const result = jobMutationQueue.then(fn, fn);
+  jobMutationQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
+
 async function navigateJobTab(job) {
   const combo = currentCombo(job);
   if (!combo) return job;
@@ -180,12 +198,14 @@ async function handleBlocked(senderTabId) {
   await chrome.tabs.update(job.tabId, { active: true });
 }
 
-chrome.tabs.onRemoved.addListener(async (tabId) => {
-  const job = await getJob();
-  if (job && job.tabId === tabId && job.status === JOB_STATUS.RUNNING) {
-    job.status = JOB_STATUS.CANCELADO;
-    await saveJob(job);
-  }
+chrome.tabs.onRemoved.addListener((tabId) => {
+  withJobLock(async () => {
+    const job = await getJob();
+    if (job && job.tabId === tabId && job.status === JOB_STATUS.RUNNING) {
+      job.status = JOB_STATUS.CANCELADO;
+      await saveJob(job);
+    }
+  });
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -193,35 +213,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   switch (message?.type) {
     case 'START_MAPS_JOB':
-      startJob(message.payload).then(sendResponse);
+      withJobLock(() => startJob(message.payload)).then(sendResponse);
       return true;
 
     case 'CANCEL_MAPS_JOB':
-      cancelJob().then(sendResponse);
+      withJobLock(cancelJob).then(sendResponse);
       return true;
 
     case 'RESUME_MAPS_JOB':
-      resumeJob().then(sendResponse);
+      withJobLock(resumeJob).then(sendResponse);
       return true;
 
     case 'CLEAR_MAPS_JOB':
-      clearJob().then(() => sendResponse({ ok: true }));
+      withJobLock(clearJob).then(() => sendResponse({ ok: true }));
       return true;
 
     case 'MAPS_CS_READY':
-      handleContentScriptReady(tabId).then(sendResponse);
+      withJobLock(() => handleContentScriptReady(tabId)).then(sendResponse);
       return true;
 
     case 'MAPS_LEAD_FOUND':
-      handleLeadFound(message.lead, tabId).then(() => sendResponse({ ok: true }));
+      withJobLock(() => handleLeadFound(message.lead, tabId)).then(() => sendResponse({ ok: true }));
       return true;
 
     case 'MAPS_QUERY_DONE':
-      handleQueryDone(tabId).then(() => sendResponse({ ok: true }));
+      withJobLock(() => handleQueryDone(tabId)).then(() => sendResponse({ ok: true }));
       return true;
 
     case 'MAPS_BLOCKED':
-      handleBlocked(tabId).then(() => sendResponse({ ok: true }));
+      withJobLock(() => handleBlocked(tabId)).then(() => sendResponse({ ok: true }));
       return true;
 
     case 'SEND_TO_WEBHOOK':
