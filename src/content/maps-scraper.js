@@ -60,7 +60,7 @@
     );
   }
 
-  async function waitForFeed(timeoutMs = 20000) {
+  async function waitForFeed(timeoutMs = 8000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       tryDismissConsentBanner();
