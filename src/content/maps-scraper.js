@@ -11,6 +11,11 @@
 // conta e risco, preferencialmente em volume moderado.
 
 (function () {
+  const LOG_PREFIX = '[WhatsProspect]';
+  function log(...args) {
+    console.log(LOG_PREFIX, ...args);
+  }
+
   const SELECTORS = {
     feed: 'div[role="feed"]',
     detailRoot: 'div[role="main"]',
@@ -173,9 +178,19 @@
     card.scrollIntoView({ block: 'center' });
     card.click();
     const detail = await waitForDetail(previousName);
-    if (!detail) return { lead: null, blocked: isBlockedPage() };
+    if (!detail) {
+      const blocked = isBlockedPage();
+      log('Painel de detalhes não abriu a tempo (timeout).', { blocked, href: card.href });
+      return { lead: null, blocked };
+    }
 
     const lead = extractLeadFromDetail(detail.root, detail.name);
+    log('Extraído:', {
+      nome: lead.nome,
+      telefoneCru: lead.telefoneCru || '(vazio)',
+      site: lead.site || '(vazio)',
+      endereco: lead.endereco || '(vazio)',
+    });
 
     // Volta para a lista de resultados usando o histórico do próprio Maps.
     window.history.back();
@@ -189,15 +204,19 @@
   }
 
   async function runQuery(remainingTarget) {
+    log('Iniciando busca. Meta de leads restante:', remainingTarget);
     const feed = await waitForFeed();
     if (!feed) {
       if (isBlockedPage()) {
+        log('Bloqueado (verificação anti-robô) antes de achar a lista de resultados.');
         chrome.runtime.sendMessage({ type: 'MAPS_BLOCKED' });
         return;
       }
+      log('Não encontrei a lista de resultados (div[role="feed"]) — nenhum lead nesta busca.');
       chrome.runtime.sendMessage({ type: 'MAPS_QUERY_DONE', found: 0 });
       return;
     }
+    log('Lista de resultados encontrada com', getCardLinks(feed).length, 'card(s) iniciais.');
 
     const processedHrefs = new Set();
     let collected = 0;
@@ -212,6 +231,7 @@
 
         const { lead, blocked } = await openCardAndExtract(card, lastDetailName);
         if (blocked) {
+          log('Bloqueado (verificação anti-robô) durante a extração.');
           chrome.runtime.sendMessage({ type: 'MAPS_BLOCKED' });
           return;
         }
@@ -219,6 +239,7 @@
           lastDetailName = lead.nome;
           chrome.runtime.sendMessage({ type: 'MAPS_LEAD_FOUND', lead });
           collected += 1;
+          log('Enviado ao background. Total coletado nesta busca:', collected);
         }
 
         if (collected >= remainingTarget) break;
@@ -242,6 +263,7 @@
       if (processedHrefs.size > 120) break; // limite de segurança por busca
     }
 
+    log('Busca finalizada. Total coletado:', collected);
     chrome.runtime.sendMessage({ type: 'MAPS_QUERY_DONE', found: collected });
   }
 
@@ -249,11 +271,16 @@
     let response;
     try {
       response = await chrome.runtime.sendMessage({ type: 'MAPS_CS_READY' });
-    } catch {
-      return; // background indisponível (ex.: extensão recarregada)
+    } catch (error) {
+      log('Não consegui falar com o background (extensão recarregada?):', error.message);
+      return;
     }
-    if (!response || !response.shouldRun) return;
+    if (!response || !response.shouldRun) {
+      log('Nenhum job ativo para esta aba — script não vai agir.');
+      return;
+    }
 
+    log('Job ativo confirmado pelo background. Iniciando em instantes...');
     await randomDelay(400, 900);
     await runQuery(response.remainingTarget);
   }

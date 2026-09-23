@@ -85,9 +85,18 @@ async function handleContentScriptReady(senderTabId) {
 
 async function handleLeadFound(rawLead, senderTabId) {
   const job = await getJob();
-  if (!job || job.status !== JOB_STATUS.RUNNING || job.tabId !== senderTabId) return;
+  if (!job || job.status !== JOB_STATUS.RUNNING || job.tabId !== senderTabId) {
+    console.log('[WhatsProspect] Lead recebido mas ignorado: nenhum job rodando para esta aba.', rawLead.nome);
+    return;
+  }
 
   if (job.somenteComTelefone && !isValidBrazilianPhone(rawLead.telefoneCru)) {
+    console.log(
+      '[WhatsProspect] Lead descartado por falta de telefone válido:',
+      rawLead.nome,
+      'telefoneCru =',
+      JSON.stringify(rawLead.telefoneCru)
+    );
     return;
   }
 
@@ -101,13 +110,20 @@ async function handleLeadFound(rawLead, senderTabId) {
   };
 
   const key = dedupeKey(lead);
-  if (job.seenKeys.includes(key)) return;
+  if (job.seenKeys.includes(key)) {
+    console.log('[WhatsProspect] Lead descartado por duplicidade nesta busca:', lead.nome);
+    return;
+  }
 
   if (job.ignorarHistorico) {
     const history = await getHistory();
-    if (history[key]) return;
+    if (history[key]) {
+      console.log('[WhatsProspect] Lead descartado: já estava no histórico:', lead.nome);
+      return;
+    }
   }
 
+  console.log('[WhatsProspect] Lead aceito e adicionado à lista:', lead.nome, lead.telefone);
   job.seenKeys.push(key);
   job.leads.push(lead);
   await saveJob(job);

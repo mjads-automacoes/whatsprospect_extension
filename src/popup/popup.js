@@ -164,6 +164,14 @@ els.gerarVariacoesBtn.addEventListener('click', () => {
   }
   currentVariations = generateKeywordVariations(segmento);
   renderVariacoes();
+
+  if (currentVariations.length <= 1) {
+    setStatus(
+      'Este termo ainda não está no dicionário de sinônimos, então só a palavra-chave original foi usada. Adicione variações manualmente abaixo se quiser.'
+    );
+  } else {
+    setStatus(`${currentVariations.length} variações geradas. Ajuste a lista abaixo se quiser.`);
+  }
 });
 
 els.addVariacaoBtn.addEventListener('click', () => {
