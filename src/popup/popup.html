@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WhatsProspect</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="app-header">
+    <img src="../../icons/icon48.png" alt="" width="24" height="24" />
+    <h1>WhatsProspect</h1>
+    <button id="openOptionsBtn" class="link-btn" type="button" title="Configurações">⚙</button>
+  </header>
+
+  <main>
+    <section id="apiKeyWarning" class="banner banner-warning hidden">
+      Configure sua chave da Google Places API em
+      <a href="#" id="openOptionsLink">Opções</a> antes de buscar.
+    </section>
+
+    <form id="searchForm">
+      <label for="segmentoInput">Segmento / palavra-chave</label>
+      <input id="segmentoInput" type="text" placeholder="Ex.: Oficina mecânica" required />
+
+      <label for="cidadesInput">Cidades (separadas por vírgula)</label>
+      <textarea id="cidadesInput" rows="2" placeholder="Ex.: Birigui SP, Araçatuba SP, Penápolis SP" required></textarea>
+
+      <div class="row">
+        <div class="col">
+          <label for="quantidadeInput">Quantidade de leads</label>
+          <input id="quantidadeInput" type="number" min="1" max="500" value="50" required />
+        </div>
+      </div>
+
+      <label class="checkbox-row">
+        <input id="somenteTelefoneCheck" type="checkbox" checked />
+        Somente resultados com telefone
+      </label>
+
+      <label class="checkbox-row">
+        <input id="ignorarHistoricoCheck" type="checkbox" checked />
+        Não repetir empresas já prospectadas (histórico)
+      </label>
+
+      <button id="gerarVariacoesBtn" type="button" class="secondary-btn">
+        Gerar variações da palavra-chave
+      </button>
+
+      <div id="variacoesContainer" class="variacoes-container hidden">
+        <p class="hint">Selecione quais variações usar na busca:</p>
+        <div id="variacoesList" class="variacoes-list"></div>
+        <div class="add-variacao-row">
+          <input id="novaVariacaoInput" type="text" placeholder="Adicionar variação manual" />
+          <button id="addVariacaoBtn" type="button" class="secondary-btn small">+</button>
+        </div>
+      </div>
+
+      <button id="buscarBtn" type="submit" class="primary-btn" disabled>Buscar leads</button>
+    </form>
+
+    <section id="statusArea" class="status-area hidden" aria-live="polite"></section>
+
+    <section id="resultsSection" class="results-section hidden">
+      <div class="results-header">
+        <span id="resultsCount">0 leads encontrados</span>
+        <div class="results-actions">
+          <button id="exportCsvBtn" type="button" class="primary-btn small">Exportar CSV</button>
+        </div>
+      </div>
+      <div class="results-table-wrapper">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Telefone</th>
+              <th>Cidade</th>
+              <th>Estado</th>
+              <th>Categoria</th>
+              <th>Site</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

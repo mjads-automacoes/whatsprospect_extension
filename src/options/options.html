@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WhatsProspect — Configurações</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main>
+    <h1>Configurações do WhatsProspect</h1>
+
+    <section class="card">
+      <h2>Google Places API</h2>
+      <p class="text-muted">
+        A extensão usa a
+        <strong>Google Places API (New)</strong> como fonte de dados comercial
+        autorizada. Crie uma chave de API no
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">
+          Google Cloud Console</a>, habilite a "Places API (New)" e ative o
+        faturamento do projeto (a API é paga, mas possui cota gratuita mensal).
+      </p>
+
+      <label for="apiKeyInput">Chave de API</label>
+      <input id="apiKeyInput" type="password" placeholder="AIza..." autocomplete="off" />
+
+      <button id="toggleVisibilityBtn" type="button" class="secondary-btn small">Mostrar</button>
+      <button id="saveApiKeyBtn" type="button" class="primary-btn">Salvar</button>
+
+      <p id="apiKeyStatus" class="status-msg"></p>
+    </section>
+
+    <section class="card">
+      <h2>Histórico de prospecção</h2>
+      <p class="text-muted">
+        Empresas já encontradas ficam salvas localmente para evitar que a
+        mesma empresa seja prospectada novamente em buscas futuras.
+      </p>
+      <p><span id="historyCount">0</span> empresa(s) no histórico.</p>
+      <button id="clearHistoryBtn" type="button" class="danger-btn">Limpar histórico</button>
+    </section>
+
+    <section class="card">
+      <h2>Integrações futuras</h2>
+      <p class="text-muted">
+        Espaço reservado para enviar novos leads automaticamente para um
+        webhook do N8N (que pode encaminhar para Google Sheets, CRM e
+        WhatsApp). Ainda não implementado nesta versão.
+      </p>
+      <label for="webhookInput">URL do webhook (N8N)</label>
+      <input id="webhookInput" type="text" placeholder="https://..." disabled />
+      <p class="text-muted small">Em breve.</p>
+    </section>
+  </main>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>
