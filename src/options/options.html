@@ -46,6 +46,47 @@
         salvos apenas neste navegador.
       </p>
 
+      <p class="mono-box" id="redirectUrlBox">carregando...</p>
+      <p class="text-muted small">
+        ↑ Essa é a URL de redirecionamento fixa desta extensão. Ela precisa
+        estar na lista de "Redirect URLs" do seu projeto Supabase — a Opção A
+        abaixo faz isso sozinha; na Opção B você cola manualmente.
+      </p>
+
+      <h3>Opção A — Provisionar automaticamente</h3>
+      <p class="text-muted">
+        Cole um <strong>Personal Access Token</strong> do Supabase (crie um em
+        <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener">
+          supabase.com/dashboard/account/tokens</a>, de preferência com escopo
+        limitado). A extensão cria o projeto, roda o <code>schema.sql</code> e
+        registra a URL de redirecionamento sozinha. O Client ID/Secret do
+        Google (campos opcionais abaixo) você ainda precisa criar manualmente
+        no <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>
+        — isso não tem como ser automatizado (é uma trava de segurança do
+        próprio Google) — mas se preenchidos aqui, a extensão os configura no
+        Supabase pra você.
+      </p>
+
+      <label for="patInput">Personal Access Token</label>
+      <input id="patInput" type="password" placeholder="sbp_..." autocomplete="off" />
+
+      <label for="orgSelect">Organização</label>
+      <select id="orgSelect"><option value="">Cole o token acima para carregar</option></select>
+
+      <label for="projectNameInput">Nome do projeto</label>
+      <input id="projectNameInput" type="text" value="whatsprospect" />
+
+      <label for="googleClientIdInput">Google Client ID (opcional)</label>
+      <input id="googleClientIdInput" type="text" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" />
+
+      <label for="googleClientSecretInput">Google Client Secret (opcional)</label>
+      <input id="googleClientSecretInput" type="password" placeholder="GOCSPX-..." autocomplete="off" />
+
+      <button id="provisionBtn" type="button" class="primary-btn">Provisionar automaticamente</button>
+
+      <div id="provisionSteps" class="provision-steps hidden"></div>
+
+      <h3>Opção B — Configurar manualmente</h3>
       <ol class="text-muted setup-steps">
         <li>Crie um projeto em <a href="https://app.supabase.com" target="_blank" rel="noopener">app.supabase.com</a> (grátis).</li>
         <li>
@@ -55,17 +96,14 @@
         </li>
         <li>
           Em <strong>Authentication → Providers → Google</strong>, habilite o
-          provedor e informe um Client ID/Secret OAuth criado no
-          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>
-          (tipo "Aplicativo Web", com o redirect URI de callback que o
-          próprio Supabase mostra na tela).
+          provedor e informe um Client ID/Secret OAuth (mesmo do Google Cloud
+          Console mencionado acima).
         </li>
         <li>
           Em <strong>Authentication → URL Configuration → Redirect URLs</strong>,
-          adicione a URL abaixo (gerada por esta extensão):
+          adicione a URL mostrada acima.
         </li>
       </ol>
-      <p class="mono-box" id="redirectUrlBox">carregando...</p>
 
       <label for="supabaseUrlInput">URL do projeto Supabase</label>
       <input id="supabaseUrlInput" type="text" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" />

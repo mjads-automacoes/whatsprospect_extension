@@ -117,6 +117,8 @@ whatsprospect_extension/
 │       ├── mapsJob.js            # estado do job de scraping do Maps
 │       ├── supabaseAuth.js       # login Google via Supabase Auth (chrome.identity)
 │       ├── supabaseLeads.js      # sincronização de leads com o Supabase
+│       ├── supabaseManagementApi.js  # provisionamento automático via Management API
+│       ├── supabaseSchema.js     # SQL do schema embutido (usado pelo provisionamento)
 │       ├── placesApi.js          # cliente da Google Places API (New) — não usado por padrão
 │       └── search.js             # orquestrador via Places API — não usado por padrão
 ├── supabase/
@@ -151,7 +153,40 @@ whatsprospect_extension/
 Por padrão os leads ficam só no `chrome.storage.local` do navegador onde a
 extensão roda. Se você quiser um histórico centralizado na nuvem (acessível
 de qualquer computador, base para futuras integrações com N8N/CRM), pode
-conectar um projeto [Supabase](https://supabase.com) gratuito:
+conectar um projeto [Supabase](https://supabase.com) gratuito, por dois
+caminhos:
+
+### Opção A — Provisionamento automático (Opções → Sincronização com Supabase)
+
+1. Gere um **Personal Access Token** em
+   [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
+   (de preferência com escopo limitado a um projeto/organização, não o token
+   "classic" de acesso total).
+2. Cole esse token nas **Opções** da extensão, escolha a organização e
+   clique em **Provisionar automaticamente**. Isso cria o projeto, roda o
+   `supabase/schema.sql`, busca as chaves da API e registra a URL de
+   redirecionamento — tudo via
+   [Management API](https://supabase.com/docs/reference/api/introduction) do
+   Supabase, sem você abrir o painel manualmente.
+3. O único passo que **não tem como ser automatizado** (trava de segurança
+   do próprio Google, nenhuma ferramenta de terceiros pode contornar): criar
+   um **Client ID/Secret OAuth** no
+   [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   (tipo "Aplicativo Web"). Se você colar esse Client ID/Secret nos campos
+   opcionais da tela de provisionamento, a extensão configura o provedor
+   Google no Supabase para você; só a criação em si no Google Cloud é
+   manual.
+4. No popup, clique em **Entrar com Google**.
+
+> ⚠️ Esse fluxo automático chama endpoints da Management API do Supabase
+> (`api.supabase.com`) cujos nomes de campo exatos (principalmente na
+> configuração de Auth/redirect URLs) foram reconstruídos a partir de
+> documentação pública e podem ter mudado. Cada etapa mostra o erro cru da
+> API se algo falhar, e as etapas já concluídas (projeto, schema, chaves)
+> não são perdidas — só a etapa que falhar precisa ser refeita manualmente
+> pela Opção B.
+
+### Opção B — Configuração manual
 
 1. Crie um projeto em [app.supabase.com](https://app.supabase.com).
 2. No **SQL Editor** do projeto, rode o conteúdo de `supabase/schema.sql`

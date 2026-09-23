@@ -27,7 +27,8 @@
   "host_permissions": [
     "https://places.googleapis.com/*",
     "https://www.google.com/maps/*",
-    "https://*.supabase.co/*"
+    "https://*.supabase.co/*",
+    "https://api.supabase.com/*"
   ],
   "content_scripts": [
     {
