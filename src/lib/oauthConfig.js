@@ -16,4 +16,4 @@
 // mostra um erro explicando que o setup do mantenedor ainda não foi feito.
 
 export const MANAGEMENT_OAUTH_CLIENT_ID = '41a66a50-a3d8-4aed-bf2f-a3037bc9cdc5';
-export const OAUTH_RELAY_URL = '';
+export const OAUTH_RELAY_URL = 'https://gxzvpbgnqoxjklfxjuju.supabase.co/functions/v1/oauth-exchange';
