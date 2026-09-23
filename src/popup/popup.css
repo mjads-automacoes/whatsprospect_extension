@@ -1,13 +1,15 @@
 :root {
-  --green: #25d366;
-  --green-dark: #128c4a;
-  --text: #1b1b1b;
-  --muted: #6b6b6b;
-  --border: #e0e0e0;
-  --bg: #ffffff;
-  --danger: #c0392b;
-  --warning-bg: #fff3cd;
-  --warning-text: #7a5b00;
+  --green: #00c648;
+  --green-dark: #00a83d;
+  --text: #f1f5f3;
+  --muted: #93a29d;
+  --border: #33413c;
+  --bg: #1d2523;
+  --bg-elevated: #242f2c;
+  --bg-hover: #2c3834;
+  --danger: #ff6b6b;
+  --warning-bg: #3a3220;
+  --warning-text: #ffcf6b;
 }
 
 * {
@@ -97,6 +99,13 @@ textarea {
   border-radius: 6px;
   font-size: 13px;
   font-family: inherit;
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
 }
 
 textarea {
@@ -135,7 +144,7 @@ textarea {
 
 .primary-btn {
   background: var(--green);
-  color: white;
+  color: #08130d;
 }
 
 .primary-btn:hover:not(:disabled) {
@@ -143,17 +152,18 @@ textarea {
 }
 
 .primary-btn:disabled {
-  background: #b7e8c9;
+  background: #2c453a;
+  color: var(--muted);
   cursor: not-allowed;
 }
 
 .secondary-btn {
-  background: #f2f2f2;
+  background: var(--bg-hover);
   color: var(--text);
 }
 
 .secondary-btn:hover {
-  background: #e6e6e6;
+  background: #354541;
 }
 
 .primary-btn.small,
@@ -213,7 +223,7 @@ textarea {
 .status-area {
   margin-top: 10px;
   padding: 8px 10px;
-  background: #f7f7f7;
+  background: var(--bg-elevated);
   border-radius: 6px;
   font-size: 12px;
   color: var(--muted);
@@ -267,7 +277,7 @@ td {
 }
 
 th {
-  background: #fafafa;
+  background: var(--bg-elevated);
   position: sticky;
   top: 0;
 }

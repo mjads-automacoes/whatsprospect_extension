@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "WhatsProspect — Prospecção de Leads (Google Maps)",
   "version": "0.1.0",
-  "description": "Busca empresas por segmento e cidade usando a Google Places API, remove duplicados, filtra por telefone e exporta leads em CSV.",
+  "description": "Busca empresas por segmento e cidade no Google Maps, remove duplicados, filtra por telefone e exporta leads em CSV.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjiHXtjwbT87/o7nDlagMk6ySmkjhlJe7xz7l7XxiqsOWF+Qq0Hkw8OCdwpQDXC4iagP/ha78SBWbJq+BM0J93SlTE+sHNia+FyNJRR5qJRjoP3BJiiIiymCPQAsR8lQy4ugYKh8tsywknqw4GLsJpQMPr+qPKDLO0TudICkKAneAM6VHQQjOhPDrIWdzpoBXTwV4PdlREPRYblJbP4/YXQjN9K1J2nhBJO/whquhhsroHtmTzuyY6NhOsOxfOyQvtGYvDTw4LIgWFwJz89rPJwJWreN0ug8tx2XVGQ07OMjPYvNRfeT5tBlu0zy60n/ftHvJvOHrnX52lW2k0FJDcQIDAQAB",
   "action": {
     "default_popup": "src/popup/popup.html",

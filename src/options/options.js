@@ -14,10 +14,6 @@ import {
 import { SCHEMA_SQL } from '../lib/supabaseSchema.js';
 
 const els = {
-  apiKeyInput: document.getElementById('apiKeyInput'),
-  toggleVisibilityBtn: document.getElementById('toggleVisibilityBtn'),
-  saveApiKeyBtn: document.getElementById('saveApiKeyBtn'),
-  apiKeyStatus: document.getElementById('apiKeyStatus'),
   historyCount: document.getElementById('historyCount'),
   clearHistoryBtn: document.getElementById('clearHistoryBtn'),
   redirectUrlBox: document.getElementById('redirectUrlBox'),
@@ -37,30 +33,11 @@ const els = {
 
 async function loadSettings() {
   const settings = await getSettings();
-  els.apiKeyInput.value = settings.apiKey || '';
   els.supabaseUrlInput.value = settings.supabaseUrl || '';
   els.supabaseAnonKeyInput.value = settings.supabaseAnonKey || '';
   els.historyCount.textContent = await historyCount();
   els.redirectUrlBox.textContent = getRedirectUrl();
 }
-
-els.toggleVisibilityBtn.addEventListener('click', () => {
-  const isPassword = els.apiKeyInput.type === 'password';
-  els.apiKeyInput.type = isPassword ? 'text' : 'password';
-  els.toggleVisibilityBtn.textContent = isPassword ? 'Ocultar' : 'Mostrar';
-});
-
-els.saveApiKeyBtn.addEventListener('click', async () => {
-  const apiKey = els.apiKeyInput.value.trim();
-  try {
-    await saveSettings({ apiKey });
-    els.apiKeyStatus.textContent = 'Chave salva com sucesso.';
-    els.apiKeyStatus.classList.remove('error');
-  } catch (error) {
-    els.apiKeyStatus.textContent = `Erro ao salvar: ${error.message}`;
-    els.apiKeyStatus.classList.add('error');
-  }
-});
 
 els.toggleSupabaseKeyBtn.addEventListener('click', () => {
   const isPassword = els.supabaseAnonKeyInput.type === 'password';

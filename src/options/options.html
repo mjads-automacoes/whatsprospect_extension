@@ -7,68 +7,22 @@
 </head>
 <body>
   <main>
-    <h1>Configurações do WhatsProspect</h1>
+    <h1>Configurações</h1>
 
     <section class="card">
-      <h2>Fonte de dados</h2>
+      <h2>Sincronizar leads na nuvem (opcional)</h2>
       <p class="text-muted">
-        Por padrão, a busca é feita automatizando a navegação no próprio
-        <strong>Google Maps</strong> (grátis, mas fora dos Termos de Serviço
-        do Google — veja o aviso no popup). Nenhuma chave é necessária para
-        esse modo.
-      </p>
-      <p class="text-muted">
-        Opcionalmente, o código já inclui um cliente para a
-        <strong>Google Places API (New)</strong> (<code>src/lib/placesApi.js</code>),
-        uma fonte oficial e paga, caso você queira migrar para ela no futuro
-        para reduzir o risco de bloqueio. Se quiser usá-la, crie uma chave no
-        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">
-          Google Cloud Console</a> e cole abaixo — mas isso ainda não está
-        conectado à busca do popup nesta versão.
+        Conecte um projeto <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>
+        grátis pra guardar os leads encontrados com login Google. Sem isso,
+        a extensão funciona normalmente e guarda os leads só neste
+        navegador.
       </p>
 
-      <label for="apiKeyInput">Chave de API (opcional, uso futuro)</label>
-      <input id="apiKeyInput" type="password" placeholder="AIza..." autocomplete="off" />
-
-      <button id="toggleVisibilityBtn" type="button" class="secondary-btn small">Mostrar</button>
-      <button id="saveApiKeyBtn" type="button" class="primary-btn">Salvar</button>
-
-      <p id="apiKeyStatus" class="status-msg"></p>
-    </section>
-
-    <section class="card">
-      <h2>Sincronização com Supabase (login Google)</h2>
-      <p class="text-muted">
-        Opcional. Conecte um projeto <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>
-        para guardar os leads encontrados num banco na nuvem (além do
-        histórico local), com login via Google. Sem isso configurado, a
-        extensão continua funcionando normalmente, só que os leads ficam
-        salvos apenas neste navegador.
-      </p>
-
-      <p class="mono-box" id="redirectUrlBox">carregando...</p>
-      <p class="text-muted small">
-        ↑ Essa é a URL de redirecionamento fixa desta extensão. Ela precisa
-        estar na lista de "Redirect URLs" do seu projeto Supabase — a Opção A
-        abaixo faz isso sozinha; na Opção B você cola manualmente.
-      </p>
-
-      <h3>Opção A — Provisionar automaticamente</h3>
-      <p class="text-muted">
-        Cole um <strong>Personal Access Token</strong> do Supabase (crie um em
-        <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener">
-          supabase.com/dashboard/account/tokens</a>, de preferência com escopo
-        limitado). A extensão cria o projeto, roda o <code>schema.sql</code> e
-        registra a URL de redirecionamento sozinha. O Client ID/Secret do
-        Google (campos opcionais abaixo) você ainda precisa criar manualmente
-        no <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>
-        — isso não tem como ser automatizado (é uma trava de segurança do
-        próprio Google) — mas se preenchidos aqui, a extensão os configura no
-        Supabase pra você.
-      </p>
-
-      <label for="patInput">Personal Access Token</label>
+      <label for="patInput">Personal Access Token do Supabase</label>
       <input id="patInput" type="password" placeholder="sbp_..." autocomplete="off" />
+      <p class="text-muted small">
+        Crie um em <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener">supabase.com/dashboard/account/tokens</a>.
+      </p>
 
       <label for="orgSelect">Organização</label>
       <select id="orgSelect"><option value="">Cole o token acima para carregar</option></select>
@@ -76,43 +30,42 @@
       <label for="projectNameInput">Nome do projeto</label>
       <input id="projectNameInput" type="text" value="whatsprospect" />
 
-      <label for="googleClientIdInput">Google Client ID (opcional)</label>
-      <input id="googleClientIdInput" type="text" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" />
-
-      <label for="googleClientSecretInput">Google Client Secret (opcional)</label>
-      <input id="googleClientSecretInput" type="password" placeholder="GOCSPX-..." autocomplete="off" />
+      <details class="collapsible">
+        <summary>Login com Google (opcional)</summary>
+        <p class="text-muted small">
+          Crie um Client ID/Secret OAuth no
+          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>
+          (esse passo é manual — nenhuma ferramenta consegue criar isso por
+          você, é uma trava de segurança do próprio Google) e cole abaixo
+          pra extensão configurar sozinha no Supabase.
+        </p>
+        <label for="googleClientIdInput">Google Client ID</label>
+        <input id="googleClientIdInput" type="text" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" />
+        <label for="googleClientSecretInput">Google Client Secret</label>
+        <input id="googleClientSecretInput" type="password" placeholder="GOCSPX-..." autocomplete="off" />
+      </details>
 
       <button id="provisionBtn" type="button" class="primary-btn">Provisionar automaticamente</button>
 
       <div id="provisionSteps" class="provision-steps hidden"></div>
 
-      <h3>Opção B — Configurar manualmente</h3>
-      <ol class="text-muted setup-steps">
-        <li>Crie um projeto em <a href="https://app.supabase.com" target="_blank" rel="noopener">app.supabase.com</a> (grátis).</li>
-        <li>
-          No SQL Editor do projeto, rode o conteúdo de
-          <code>supabase/schema.sql</code> (deste repositório) para criar a
-          tabela de leads com Row Level Security.
-        </li>
-        <li>
-          Em <strong>Authentication → Providers → Google</strong>, habilite o
-          provedor e informe um Client ID/Secret OAuth (mesmo do Google Cloud
-          Console mencionado acima).
-        </li>
-        <li>
-          Em <strong>Authentication → URL Configuration → Redirect URLs</strong>,
-          adicione a URL mostrada acima.
-        </li>
-      </ol>
-
-      <label for="supabaseUrlInput">URL do projeto Supabase</label>
-      <input id="supabaseUrlInput" type="text" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" />
-
-      <label for="supabaseAnonKeyInput">Chave anônima (anon/public key)</label>
-      <input id="supabaseAnonKeyInput" type="password" placeholder="eyJhbGciOi..." autocomplete="off" />
-
-      <button id="toggleSupabaseKeyBtn" type="button" class="secondary-btn small">Mostrar</button>
-      <button id="saveSupabaseBtn" type="button" class="primary-btn">Salvar</button>
+      <details class="collapsible">
+        <summary>Já tenho um projeto Supabase (configurar manualmente)</summary>
+        <ol class="text-muted setup-steps">
+          <li>No SQL Editor do seu projeto, rode <code>supabase/schema.sql</code> deste repositório.</li>
+          <li>Em <strong>Authentication → Providers → Google</strong>, habilite o provedor com seu Client ID/Secret.</li>
+          <li>
+            Em <strong>Authentication → URL Configuration → Redirect URLs</strong>, adicione:
+            <span class="mono-box" id="redirectUrlBox">carregando...</span>
+          </li>
+        </ol>
+        <label for="supabaseUrlInput">URL do projeto</label>
+        <input id="supabaseUrlInput" type="text" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" />
+        <label for="supabaseAnonKeyInput">Chave anônima (anon/public key)</label>
+        <input id="supabaseAnonKeyInput" type="password" placeholder="eyJhbGciOi..." autocomplete="off" />
+        <button id="toggleSupabaseKeyBtn" type="button" class="secondary-btn small">Mostrar</button>
+        <button id="saveSupabaseBtn" type="button" class="primary-btn small">Salvar</button>
+      </details>
 
       <p id="supabaseStatus" class="status-msg"></p>
     </section>
@@ -120,23 +73,10 @@
     <section class="card">
       <h2>Histórico de prospecção</h2>
       <p class="text-muted">
-        Empresas já encontradas ficam salvas localmente para evitar que a
-        mesma empresa seja prospectada novamente em buscas futuras.
+        <span id="historyCount">0</span> empresa(s) salvas — evita
+        prospectar a mesma empresa duas vezes.
       </p>
-      <p><span id="historyCount">0</span> empresa(s) no histórico.</p>
       <button id="clearHistoryBtn" type="button" class="danger-btn">Limpar histórico</button>
-    </section>
-
-    <section class="card">
-      <h2>Integrações futuras</h2>
-      <p class="text-muted">
-        Espaço reservado para enviar novos leads automaticamente para um
-        webhook do N8N (que pode encaminhar para Google Sheets, CRM e
-        WhatsApp). Ainda não implementado nesta versão.
-      </p>
-      <label for="webhookInput">URL do webhook (N8N)</label>
-      <input id="webhookInput" type="text" placeholder="https://..." disabled />
-      <p class="text-muted small">Em breve.</p>
     </section>
   </main>
 
