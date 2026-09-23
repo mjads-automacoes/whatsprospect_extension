@@ -74,7 +74,7 @@
   // Rótulos que aparecem como h1 mas não são nome de empresa nenhuma —
   // ex.: cards de anúncio/patrocinado têm seu próprio h1 com esse texto,
   // separado do h1 da empresa anunciada.
-  const NON_BUSINESS_HEADING_PATTERN = /^(patrocinado|sponsored|an[uú]ncio|ad)$/i;
+  const NON_BUSINESS_HEADING_PATTERN = /^(patrocinado|sponsored|an[uú]ncio|promovido)\b/i;
 
   // A página do Maps costuma ter mais de um elemento role="main" (um para
   // a lista de resultados, outro para o painel de detalhes da empresa
@@ -235,8 +235,20 @@
     return { lead, blocked: false };
   }
 
+  // feed.scrollTo() nem sempre funciona porque o elemento que realmente
+  // tem o scroll (overflow-y) às vezes é um ancestral ou descendente do
+  // div[role="feed"], não ele mesmo. Rolar até o último card ficar visível
+  // (scrollIntoView) funciona independente de qual elemento seja o
+  // verdadeiro container com scroll, porque o navegador resolve isso
+  // sozinho subindo pela árvore do DOM.
   function scrollFeedToBottom(feed) {
-    feed.scrollTo({ top: feed.scrollHeight, behavior: 'auto' });
+    const cards = getCardLinks(feed);
+    const lastCard = cards[cards.length - 1];
+    if (lastCard) {
+      lastCard.scrollIntoView({ block: 'end', behavior: 'auto' });
+    } else {
+      feed.scrollTo({ top: feed.scrollHeight, behavior: 'auto' });
+    }
   }
 
   async function runQuery(remainingTarget) {
