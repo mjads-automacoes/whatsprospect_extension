@@ -18,7 +18,6 @@
 
   const SELECTORS = {
     feed: 'div[role="feed"]',
-    detailRoot: 'div[role="main"]',
   };
 
   const BLOCKED_TEXT_PATTERN =
@@ -72,17 +71,37 @@
     return getFeed();
   }
 
+  // A página do Maps costuma ter mais de um elemento role="main" (um para
+  // a lista de resultados, outro para o painel de detalhes da empresa
+  // aberta). document.querySelector pega sempre o primeiro — que muitas
+  // vezes é o da lista, com um h1 genérico tipo "Resultados" usado só pra
+  // acessibilidade — então em vez de confiar nisso, procura o h1 que NÃO
+  // está dentro da lista de resultados (que sabemos localizar com
+  // segurança) e usa o role="main" mais próximo dele como raiz real.
+  function findDetailHeading(feedEl) {
+    const headings = Array.from(document.querySelectorAll('h1'));
+    for (const h of headings) {
+      if (feedEl && feedEl.contains(h)) continue;
+      const text = h.textContent.trim();
+      if (text) return h;
+    }
+    return null;
+  }
+
+  function detailRootFromHeading(h1) {
+    return (h1 && h1.closest('[role="main"]')) || document.body;
+  }
+
   // Quando a busca retorna um resultado só muito específico, o Maps às
   // vezes pula direto pra página de detalhes da empresa, sem nunca
   // mostrar a lista (div[role="feed"]). Detecta esse caso pra não
   // desistir a busca inteira à toa.
   function detectSingleResultPage() {
     if (!/\/maps\/place\//.test(window.location.href)) return null;
-    const root = document.querySelector(SELECTORS.detailRoot) || document.body;
-    const h1 = root.querySelector('h1');
+    const h1 = findDetailHeading(null);
     const name = h1 ? h1.textContent.trim() : '';
     if (!name) return null;
-    return { root, name };
+    return { root: detailRootFromHeading(h1), name };
   }
 
   function parseCityState(address) {
@@ -158,14 +177,13 @@
     return extractByLabel(root, /^(endere[cç]o|address)[:\s]/i);
   }
 
-  async function waitForDetail(previousName, timeoutMs = 6000) {
+  async function waitForDetail(previousName, feedEl, timeoutMs = 6000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       if (isBlockedPage()) return null;
-      const root = document.querySelector(SELECTORS.detailRoot) || document.body;
-      const h1 = root.querySelector('h1');
+      const h1 = findDetailHeading(feedEl);
       const name = h1 ? h1.textContent.trim() : '';
-      if (name && name !== previousName) return { root, name };
+      if (name && name !== previousName) return { root: detailRootFromHeading(h1), name };
       await sleep(200);
     }
     return null;
@@ -187,10 +205,10 @@
     };
   }
 
-  async function openCardAndExtract(card, previousName) {
+  async function openCardAndExtract(card, previousName, feedEl) {
     card.scrollIntoView({ block: 'center' });
     card.click();
-    const detail = await waitForDetail(previousName);
+    const detail = await waitForDetail(previousName, feedEl);
     if (!detail) {
       const blocked = isBlockedPage();
       log('Painel de detalhes não abriu a tempo (timeout).', { blocked, href: card.href });
@@ -258,7 +276,7 @@
       for (const card of cards) {
         processedHrefs.add(card.href);
 
-        const { lead, blocked } = await openCardAndExtract(card, lastDetailName);
+        const { lead, blocked } = await openCardAndExtract(card, lastDetailName, feed);
         if (blocked) {
           log('Bloqueado (verificação anti-robô) durante a extração.');
           chrome.runtime.sendMessage({ type: 'MAPS_BLOCKED' });
