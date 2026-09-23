@@ -60,7 +60,7 @@
     );
   }
 
-  async function waitForFeed(timeoutMs = 8000) {
+  async function waitForFeed(timeoutMs = 20000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       tryDismissConsentBanner();
@@ -70,6 +70,19 @@
       await sleep(300);
     }
     return getFeed();
+  }
+
+  // Quando a busca retorna um resultado só muito específico, o Maps às
+  // vezes pula direto pra página de detalhes da empresa, sem nunca
+  // mostrar a lista (div[role="feed"]). Detecta esse caso pra não
+  // desistir a busca inteira à toa.
+  function detectSingleResultPage() {
+    if (!/\/maps\/place\//.test(window.location.href)) return null;
+    const root = document.querySelector(SELECTORS.detailRoot) || document.body;
+    const h1 = root.querySelector('h1');
+    const name = h1 ? h1.textContent.trim() : '';
+    if (!name) return null;
+    return { root, name };
   }
 
   function parseCityState(address) {
@@ -212,6 +225,22 @@
         chrome.runtime.sendMessage({ type: 'MAPS_BLOCKED' });
         return;
       }
+
+      const single = detectSingleResultPage();
+      if (single) {
+        log('Nenhuma lista encontrada, mas a busca caiu direto numa página de empresa única:', single.name);
+        const lead = extractLeadFromDetail(single.root, single.name);
+        log('Extraído:', {
+          nome: lead.nome,
+          telefoneCru: lead.telefoneCru || '(vazio)',
+          site: lead.site || '(vazio)',
+          endereco: lead.endereco || '(vazio)',
+        });
+        chrome.runtime.sendMessage({ type: 'MAPS_LEAD_FOUND', lead });
+        chrome.runtime.sendMessage({ type: 'MAPS_QUERY_DONE', found: 1 });
+        return;
+      }
+
       log('Não encontrei a lista de resultados (div[role="feed"]) — nenhum lead nesta busca.');
       chrome.runtime.sendMessage({ type: 'MAPS_QUERY_DONE', found: 0 });
       return;
