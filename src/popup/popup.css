@@ -194,6 +194,12 @@ textarea {
   display: none !important;
 }
 
+.job-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .status-area {
   margin-top: 10px;
   padding: 8px 10px;

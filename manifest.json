@@ -23,7 +23,17 @@
     "type": "module"
   },
   "options_page": "src/options/options.html",
-  "permissions": ["storage", "downloads"],
-  "host_permissions": ["https://places.googleapis.com/*"],
+  "permissions": ["storage", "downloads", "tabs"],
+  "host_permissions": [
+    "https://places.googleapis.com/*",
+    "https://www.google.com/maps/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.google.com/maps/*"],
+      "js": ["src/content/maps-scraper.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "minimum_chrome_version": "114"
 }

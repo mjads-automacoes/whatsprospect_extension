@@ -1,24 +1,193 @@
 // Service worker do WhatsProspect.
 //
-// A busca de leads roda diretamente no popup (ver src/popup/popup.js) para
-// manter o fluxo simples nesta versão inicial. Este arquivo fica reservado
-// para funcionalidades futuras que dependem de um contexto persistente,
-// como: reprospecção agendada (chrome.alarms) e envio automático de novos
-// leads para um webhook do N8N / Google Sheets.
+// Orquestra o job de scraping automatizado do Google Maps: abre/navega uma
+// aba dedicada pelas combinações cidade x variação, recebe leads extraídos
+// pelo content script (src/content/maps-scraper.js) e decide o próximo
+// passo. Todo o estado do job vive em chrome.storage.local (ver
+// src/lib/mapsJob.js) porque o Chrome pode encerrar este service worker a
+// qualquer momento entre uma mensagem e outra — nada relevante pode
+// depender de variáveis em memória.
+
+import {
+  getJob,
+  saveJob,
+  clearJob,
+  createJob,
+  buildCombos,
+  buildMapsSearchUrl,
+  currentCombo,
+  isFinished,
+  JOB_STATUS,
+} from '../lib/mapsJob.js';
+import { formatBrazilianPhone, isValidBrazilianPhone } from '../lib/phoneUtils.js';
+import { dedupeKey } from '../lib/dedupe.js';
+import { getHistory, addLeadsToHistory } from '../lib/storage.js';
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
-    console.log('[WhatsProspect] Extensão instalada. Configure sua chave da Google Places API em Opções.');
+    console.log('[WhatsProspect] Extensão instalada.');
   }
 });
 
-// Placeholder para integração futura: Google Sheets -> N8N -> CRM -> WhatsApp.
-// Quando implementado, este listener receberá uma mensagem do popup com os
-// leads exportados e fará o POST para `settings.sheetsWebhookUrl`.
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === 'SEND_TO_WEBHOOK') {
-    sendResponse({ ok: false, error: 'Integração com N8N/Google Sheets ainda não implementada.' });
-    return false;
+async function navigateJobTab(job) {
+  const combo = currentCombo(job);
+  if (!combo) return job;
+  const url = buildMapsSearchUrl(combo);
+
+  if (job.tabId == null) {
+    const tab = await chrome.tabs.create({ url, active: true });
+    job.tabId = tab.id;
+  } else {
+    await chrome.tabs.update(job.tabId, { url, active: true });
   }
-  return false;
+  return saveJob(job);
+}
+
+async function startJob(payload) {
+  const { cidades, variacoes, quantidade, somenteComTelefone, ignorarHistorico } = payload;
+  const combos = buildCombos(cidades, variacoes);
+  const job = createJob({
+    combos,
+    target: quantidade,
+    somenteComTelefone,
+    ignorarHistorico,
+  });
+  await saveJob(job);
+  await navigateJobTab(job);
+  return { ok: true };
+}
+
+async function cancelJob() {
+  const job = await getJob();
+  if (!job) return { ok: true };
+  job.status = JOB_STATUS.CANCELADO;
+  await saveJob(job);
+  return { ok: true };
+}
+
+async function resumeJob() {
+  let job = await getJob();
+  if (!job || job.status !== JOB_STATUS.PAUSED_BLOCKED) return { ok: false };
+  job.status = JOB_STATUS.RUNNING;
+  job = await saveJob(job);
+  await navigateJobTab(job);
+  return { ok: true };
+}
+
+async function handleContentScriptReady(senderTabId) {
+  const job = await getJob();
+  if (!job || job.status !== JOB_STATUS.RUNNING || job.tabId !== senderTabId) {
+    return { shouldRun: false };
+  }
+  return { shouldRun: true, remainingTarget: job.target - job.leads.length };
+}
+
+async function handleLeadFound(rawLead, senderTabId) {
+  const job = await getJob();
+  if (!job || job.status !== JOB_STATUS.RUNNING || job.tabId !== senderTabId) return;
+
+  if (job.somenteComTelefone && !isValidBrazilianPhone(rawLead.telefoneCru)) {
+    return;
+  }
+
+  const combo = currentCombo(job);
+  const telefone = formatBrazilianPhone(rawLead.telefoneCru) || rawLead.telefoneCru || '';
+  const lead = {
+    ...rawLead,
+    telefone,
+    cidade: rawLead.cidade || combo?.cidade || '',
+    palavraChave: combo?.variacao || '',
+  };
+
+  const key = dedupeKey(lead);
+  if (job.seenKeys.includes(key)) return;
+
+  if (job.ignorarHistorico) {
+    const history = await getHistory();
+    if (history[key]) return;
+  }
+
+  job.seenKeys.push(key);
+  job.leads.push(lead);
+  await saveJob(job);
+}
+
+async function handleQueryDone(senderTabId) {
+  const job = await getJob();
+  if (!job || job.status !== JOB_STATUS.RUNNING || job.tabId !== senderTabId) return;
+
+  job.comboIndex += 1;
+
+  if (isFinished(job)) {
+    job.status = JOB_STATUS.CONCLUIDO;
+    await saveJob(job);
+    const leadsWithKeys = job.leads.map((lead) => ({ key: dedupeKey(lead), lead }));
+    await addLeadsToHistory(leadsWithKeys);
+    return;
+  }
+
+  await saveJob(job);
+  await navigateJobTab(job);
+}
+
+async function handleBlocked(senderTabId) {
+  const job = await getJob();
+  if (!job || job.tabId !== senderTabId) return;
+  job.status = JOB_STATUS.PAUSED_BLOCKED;
+  await saveJob(job);
+  await chrome.tabs.update(job.tabId, { active: true });
+}
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const job = await getJob();
+  if (job && job.tabId === tabId && job.status === JOB_STATUS.RUNNING) {
+    job.status = JOB_STATUS.CANCELADO;
+    await saveJob(job);
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const tabId = sender.tab?.id;
+
+  switch (message?.type) {
+    case 'START_MAPS_JOB':
+      startJob(message.payload).then(sendResponse);
+      return true;
+
+    case 'CANCEL_MAPS_JOB':
+      cancelJob().then(sendResponse);
+      return true;
+
+    case 'RESUME_MAPS_JOB':
+      resumeJob().then(sendResponse);
+      return true;
+
+    case 'CLEAR_MAPS_JOB':
+      clearJob().then(() => sendResponse({ ok: true }));
+      return true;
+
+    case 'MAPS_CS_READY':
+      handleContentScriptReady(tabId).then(sendResponse);
+      return true;
+
+    case 'MAPS_LEAD_FOUND':
+      handleLeadFound(message.lead, tabId).then(() => sendResponse({ ok: true }));
+      return true;
+
+    case 'MAPS_QUERY_DONE':
+      handleQueryDone(tabId).then(() => sendResponse({ ok: true }));
+      return true;
+
+    case 'MAPS_BLOCKED':
+      handleBlocked(tabId).then(() => sendResponse({ ok: true }));
+      return true;
+
+    case 'SEND_TO_WEBHOOK':
+      // Reservado para integração futura: Google Sheets -> N8N -> CRM -> WhatsApp.
+      sendResponse({ ok: false, error: 'Integração com N8N/Google Sheets ainda não implementada.' });
+      return false;
+
+    default:
+      return false;
+  }
 });

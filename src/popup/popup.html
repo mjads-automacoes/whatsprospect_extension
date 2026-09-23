@@ -13,9 +13,11 @@
   </header>
 
   <main>
-    <section id="apiKeyWarning" class="banner banner-warning hidden">
-      Configure sua chave da Google Places API em
-      <a href="#" id="openOptionsLink">Opções</a> antes de buscar.
+    <section class="banner banner-warning">
+      ⚠️ Este modo automatiza a navegação no Google Maps para ler os dados
+      exibidos na tela. Isso pode violar os Termos de Serviço do Google e
+      gerar bloqueio temporário (verificação anti-robô) se usado em volume
+      alto. Use com moderação.
     </section>
 
     <form id="searchForm">
@@ -57,6 +59,11 @@
 
       <button id="buscarBtn" type="submit" class="primary-btn" disabled>Buscar leads</button>
     </form>
+
+    <div id="jobControls" class="job-controls hidden">
+      <button id="cancelJobBtn" type="button" class="secondary-btn small">Cancelar busca</button>
+      <button id="resumeJobBtn" type="button" class="primary-btn small hidden">Retomar após verificação</button>
+    </div>
 
     <section id="statusArea" class="status-area hidden" aria-live="polite"></section>
 

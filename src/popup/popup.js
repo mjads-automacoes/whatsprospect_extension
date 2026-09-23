@@ -1,13 +1,9 @@
 import { generateKeywordVariations } from '../lib/keywordVariations.js';
-import { buscarLeads } from '../lib/search.js';
-import { getSettings, addLeadsToHistory } from '../lib/storage.js';
-import { dedupeKey } from '../lib/dedupe.js';
+import { getJob, JOB_KEY, JOB_STATUS, currentCombo } from '../lib/mapsJob.js';
 import { leadsToCsv, buildCsvFileName } from '../lib/csv.js';
 
 const els = {
-  apiKeyWarning: document.getElementById('apiKeyWarning'),
   openOptionsBtn: document.getElementById('openOptionsBtn'),
-  openOptionsLink: document.getElementById('openOptionsLink'),
   form: document.getElementById('searchForm'),
   segmentoInput: document.getElementById('segmentoInput'),
   cidadesInput: document.getElementById('cidadesInput'),
@@ -20,6 +16,9 @@ const els = {
   novaVariacaoInput: document.getElementById('novaVariacaoInput'),
   addVariacaoBtn: document.getElementById('addVariacaoBtn'),
   buscarBtn: document.getElementById('buscarBtn'),
+  jobControls: document.getElementById('jobControls'),
+  cancelJobBtn: document.getElementById('cancelJobBtn'),
+  resumeJobBtn: document.getElementById('resumeJobBtn'),
   statusArea: document.getElementById('statusArea'),
   resultsSection: document.getElementById('resultsSection'),
   resultsCount: document.getElementById('resultsCount'),
@@ -28,7 +27,7 @@ const els = {
 };
 
 let currentVariations = [];
-let lastLeads = [];
+let lastJob = null;
 
 function parseCidades(raw) {
   return raw
@@ -61,7 +60,15 @@ function getSelectedVariacoes() {
   return selected;
 }
 
+function isJobActive(job) {
+  return job && (job.status === JOB_STATUS.RUNNING || job.status === JOB_STATUS.PAUSED_BLOCKED);
+}
+
 function updateBuscarBtnState() {
+  if (isJobActive(lastJob)) {
+    els.buscarBtn.disabled = true;
+    return;
+  }
   const hasSegmento = els.segmentoInput.value.trim().length > 0;
   const hasCidades = parseCidades(els.cidadesInput.value).length > 0;
   const hasVariacoes = getSelectedVariacoes().length > 0;
@@ -74,13 +81,13 @@ function setStatus(text, isError = false) {
   els.statusArea.textContent = text;
 }
 
-function appendStatus(line) {
-  els.statusArea.classList.remove('hidden');
-  els.statusArea.textContent += `\n${line}`;
-  els.statusArea.scrollTop = els.statusArea.scrollHeight;
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = value == null ? '' : String(value);
+  return div.innerHTML;
 }
 
-function renderResults(leads) {
+function renderResultsTable(leads) {
   els.resultsSection.classList.toggle('hidden', leads.length === 0);
   els.resultsCount.textContent = `${leads.length} lead${leads.length === 1 ? '' : 's'} encontrado${leads.length === 1 ? '' : 's'}`;
   els.resultsTableBody.innerHTML = '';
@@ -98,24 +105,50 @@ function renderResults(leads) {
   }
 }
 
-function escapeHtml(value) {
-  const div = document.createElement('div');
-  div.textContent = value == null ? '' : String(value);
-  return div.innerHTML;
+function statusMessageFor(job) {
+  if (!job) return '';
+  switch (job.status) {
+    case JOB_STATUS.RUNNING: {
+      const combo = currentCombo(job);
+      const posicao = `${Math.min(job.comboIndex + 1, job.combos.length)}/${job.combos.length}`;
+      const query = combo ? `${combo.variacao} em ${combo.cidade}` : '...';
+      return `Buscando (${posicao}): ${query}\n${job.leads.length} lead(s) encontrados até agora.`;
+    }
+    case JOB_STATUS.PAUSED_BLOCKED:
+      return 'O Google mostrou uma verificação anti-robô na aba do Maps. Resolva manualmente na aba aberta e clique em "Retomar após verificação".';
+    case JOB_STATUS.CONCLUIDO:
+      return `Busca concluída: ${job.leads.length} lead(s) encontrados.`;
+    case JOB_STATUS.CANCELADO:
+      return `Busca cancelada. ${job.leads.length} lead(s) coletados até o cancelamento.`;
+    case JOB_STATUS.ERRO:
+      return `Busca interrompida por erro: ${job.lastError || 'desconhecido'}`;
+    default:
+      return '';
+  }
 }
 
-async function checkApiKey() {
-  const settings = await getSettings();
-  const hasKey = Boolean(settings.apiKey);
-  els.apiKeyWarning.classList.toggle('hidden', hasKey);
-  return settings;
+function renderJobState(job) {
+  lastJob = job;
+
+  const active = isJobActive(job);
+  els.jobControls.classList.toggle('hidden', !active);
+  els.resumeJobBtn.classList.toggle('hidden', job?.status !== JOB_STATUS.PAUSED_BLOCKED);
+  els.cancelJobBtn.classList.toggle('hidden', job?.status !== JOB_STATUS.RUNNING);
+
+  if (job) {
+    setStatus(statusMessageFor(job), job.status === JOB_STATUS.ERRO);
+    renderResultsTable(job.leads || []);
+  }
+
+  if (active) {
+    els.buscarBtn.textContent = 'Busca em andamento...';
+  } else {
+    els.buscarBtn.textContent = 'Buscar leads';
+  }
+  updateBuscarBtnState();
 }
 
 els.openOptionsBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
-els.openOptionsLink.addEventListener('click', (e) => {
-  e.preventDefault();
-  chrome.runtime.openOptionsPage();
-});
 
 els.segmentoInput.addEventListener('input', updateBuscarBtnState);
 els.cidadesInput.addEventListener('input', updateBuscarBtnState);
@@ -150,18 +183,10 @@ els.novaVariacaoInput.addEventListener('keydown', (e) => {
 
 els.form.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (isJobActive(lastJob)) return;
 
-  const settings = await checkApiKey();
-  if (!settings.apiKey) {
-    setStatus('Configure sua chave da Google Places API em Opções antes de buscar.', true);
-    return;
-  }
-
-  const segmento = els.segmentoInput.value.trim();
   const cidades = parseCidades(els.cidadesInput.value);
   const quantidade = Math.max(1, Number(els.quantidadeInput.value) || 1);
-  const somenteComTelefone = els.somenteTelefoneCheck.checked;
-  const ignorarHistorico = els.ignorarHistoricoCheck.checked;
   const variacoes = getSelectedVariacoes();
 
   if (!variacoes.length) {
@@ -169,53 +194,31 @@ els.form.addEventListener('submit', async (e) => {
     return;
   }
 
-  els.buscarBtn.disabled = true;
-  els.buscarBtn.textContent = 'Buscando...';
-  setStatus(`Iniciando busca: "${segmento}" em ${cidades.join(', ')}...`);
-  renderResults([]);
+  const payload = {
+    cidades,
+    variacoes,
+    quantidade,
+    somenteComTelefone: els.somenteTelefoneCheck.checked,
+    ignorarHistorico: els.ignorarHistoricoCheck.checked,
+  };
 
-  try {
-    const leads = await buscarLeads(
-      {
-        apiKey: settings.apiKey,
-        variacoes,
-        cidades,
-        quantidade,
-        somenteComTelefone,
-        ignorarHistorico,
-      },
-      (progress) => {
-        if (progress.status === 'buscando') {
-          appendStatus(`Pesquisando: ${progress.query}`);
-        } else if (progress.status === 'lead-encontrado') {
-          els.resultsCount.textContent = `${progress.totalEncontrado} lead(s) encontrados...`;
-          els.resultsSection.classList.remove('hidden');
-        } else if (progress.status === 'erro') {
-          appendStatus(`Erro em "${progress.query}": ${progress.mensagem}`);
-        } else if (progress.status === 'concluido') {
-          appendStatus(`Busca concluída: ${progress.totalEncontrado} lead(s).`);
-        }
-      }
-    );
+  setStatus('Iniciando busca automatizada no Google Maps... uma nova aba será aberta.');
+  await chrome.runtime.sendMessage({ type: 'START_MAPS_JOB', payload });
+});
 
-    lastLeads = leads;
-    renderResults(leads);
+els.cancelJobBtn.addEventListener('click', async () => {
+  await chrome.runtime.sendMessage({ type: 'CANCEL_MAPS_JOB' });
+});
 
-    const leadsWithKeys = leads.map((lead) => ({ key: dedupeKey(lead), lead }));
-    await addLeadsToHistory(leadsWithKeys);
-  } catch (error) {
-    setStatus(`Erro na busca: ${error.message}`, true);
-  } finally {
-    els.buscarBtn.disabled = false;
-    els.buscarBtn.textContent = 'Buscar leads';
-    updateBuscarBtnState();
-  }
+els.resumeJobBtn.addEventListener('click', async () => {
+  await chrome.runtime.sendMessage({ type: 'RESUME_MAPS_JOB' });
 });
 
 els.exportCsvBtn.addEventListener('click', () => {
-  if (!lastLeads.length) return;
+  const leads = lastJob?.leads || [];
+  if (!leads.length) return;
 
-  const csv = leadsToCsv(lastLeads);
+  const csv = leadsToCsv(leads);
   const fileName = buildCsvFileName({
     segmento: els.segmentoInput.value,
     cidades: parseCidades(els.cidadesInput.value),
@@ -224,18 +227,16 @@ els.exportCsvBtn.addEventListener('click', () => {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
 
-  chrome.downloads.download(
-    {
-      url,
-      filename: fileName,
-      saveAs: true,
-    },
-    () => {
-      // Libera a URL do blob após o início do download.
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    }
-  );
+  chrome.downloads.download({ url, filename: fileName, saveAs: true }, () => {
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
 });
 
-checkApiKey();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[JOB_KEY]) {
+    renderJobState(changes[JOB_KEY].newValue || null);
+  }
+});
+
+getJob().then(renderJobState);
 updateBuscarBtnState();

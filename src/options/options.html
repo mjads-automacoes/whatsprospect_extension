@@ -10,17 +10,24 @@
     <h1>Configurações do WhatsProspect</h1>
 
     <section class="card">
-      <h2>Google Places API</h2>
+      <h2>Fonte de dados</h2>
       <p class="text-muted">
-        A extensão usa a
-        <strong>Google Places API (New)</strong> como fonte de dados comercial
-        autorizada. Crie uma chave de API no
+        Por padrão, a busca é feita automatizando a navegação no próprio
+        <strong>Google Maps</strong> (grátis, mas fora dos Termos de Serviço
+        do Google — veja o aviso no popup). Nenhuma chave é necessária para
+        esse modo.
+      </p>
+      <p class="text-muted">
+        Opcionalmente, o código já inclui um cliente para a
+        <strong>Google Places API (New)</strong> (<code>src/lib/placesApi.js</code>),
+        uma fonte oficial e paga, caso você queira migrar para ela no futuro
+        para reduzir o risco de bloqueio. Se quiser usá-la, crie uma chave no
         <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">
-          Google Cloud Console</a>, habilite a "Places API (New)" e ative o
-        faturamento do projeto (a API é paga, mas possui cota gratuita mensal).
+          Google Cloud Console</a> e cole abaixo — mas isso ainda não está
+        conectado à busca do popup nesta versão.
       </p>
 
-      <label for="apiKeyInput">Chave de API</label>
+      <label for="apiKeyInput">Chave de API (opcional, uso futuro)</label>
       <input id="apiKeyInput" type="password" placeholder="AIza..." autocomplete="off" />
 
       <button id="toggleVisibilityBtn" type="button" class="secondary-btn small">Mostrar</button>
