@@ -32,16 +32,24 @@ export async function upsertLeads({ supabaseUrl, anonKey }, leadsWithKeys) {
 
   const rows = leadsWithKeys.map(({ key, lead }) => toRow(lead, key));
 
-  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/leads`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    body: JSON.stringify(rows),
-  });
+  // on_conflict é obrigatório: sem ele, o PostgREST tenta fazer upsert
+  // pela chave primária (id, que é sempre um UUID novo gerado a cada
+  // linha e por isso nunca colide), caindo num INSERT comum que esbarra
+  // na constraint UNIQUE de dedupe_key com um erro 409 em vez de fazer
+  // merge.
+  const response = await fetch(
+    `${supabaseUrl.replace(/\/$/, '')}/rest/v1/leads?on_conflict=dedupe_key`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify(rows),
+    }
+  );
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
