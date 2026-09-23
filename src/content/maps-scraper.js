@@ -14,9 +14,6 @@
   const SELECTORS = {
     feed: 'div[role="feed"]',
     detailRoot: 'div[role="main"]',
-    phoneButton: 'button[data-item-id^="phone:tel:"]',
-    websiteLink: 'a[data-item-id="authority"]',
-    addressButton: 'button[data-item-id="address"]',
   };
 
   const BLOCKED_TEXT_PATTERN =
@@ -79,21 +76,76 @@
     return { cidade: '', estado: '' };
   }
 
-  function extractPhoneDigits(phoneButton) {
-    if (!phoneButton) return '';
-    const itemId = phoneButton.getAttribute('data-item-id') || '';
-    const fromItemId = itemId.replace('phone:tel:', '');
-    if (fromItemId) return fromItemId;
-    const label = phoneButton.getAttribute('aria-label') || '';
-    return label.replace(/^[^:]*:\s*/, '');
+  // O HTML do Google Maps muda com frequência, então a extração tenta
+  // várias estratégias em ordem até uma funcionar, em vez de depender de
+  // um único seletor.
+  function extractByLabel(root, keywordPattern) {
+    const candidates = root.querySelectorAll('[aria-label]');
+    for (const el of candidates) {
+      const label = el.getAttribute('aria-label') || '';
+      if (keywordPattern.test(label)) {
+        return label.replace(/^[^:]*:\s*/, '').trim();
+      }
+    }
+    return '';
+  }
+
+  function extractPhone(root) {
+    if (!root) return '';
+
+    const byItemId = root.querySelector('button[data-item-id^="phone:tel:"]');
+    if (byItemId) {
+      const digits = (byItemId.getAttribute('data-item-id') || '').replace('phone:tel:', '');
+      if (digits) return digits;
+    }
+
+    const telLink = root.querySelector('a[href^="tel:"]');
+    if (telLink) {
+      const digits = (telLink.getAttribute('href') || '').replace('tel:', '');
+      if (digits) return digits;
+    }
+
+    const byLabel = extractByLabel(root, /^(telefone|phone)[:\s]/i);
+    if (byLabel) return byLabel;
+
+    // Último recurso: qualquer botão cujo texto pareça um telefone BR.
+    const buttons = root.querySelectorAll('button, a');
+    for (const el of buttons) {
+      const text = (el.textContent || '').trim();
+      if (/^\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4}$/.test(text)) return text;
+    }
+
+    return '';
+  }
+
+  function extractWebsite(root) {
+    if (!root) return '';
+    const byItemId = root.querySelector('a[data-item-id="authority"]');
+    if (byItemId) {
+      const href = byItemId.getAttribute('href') || '';
+      if (href) return href;
+    }
+    const byLabel = root.querySelector('a[aria-label^="Site:" i], a[aria-label^="Website:" i]');
+    if (byLabel) return byLabel.getAttribute('href') || '';
+    return '';
+  }
+
+  function extractAddress(root) {
+    if (!root) return '';
+    const byItemId = root.querySelector('button[data-item-id="address"]');
+    if (byItemId) {
+      const label = (byItemId.getAttribute('aria-label') || '').replace(/^[^:]*:\s*/, '').trim();
+      if (label) return label;
+    }
+    return extractByLabel(root, /^(endere[cç]o|address)[:\s]/i);
   }
 
   async function waitForDetail(previousName, timeoutMs = 6000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       if (isBlockedPage()) return null;
-      const root = document.querySelector(SELECTORS.detailRoot);
-      const h1 = root ? root.querySelector('h1') : document.querySelector('h1');
+      const root = document.querySelector(SELECTORS.detailRoot) || document.body;
+      const h1 = root.querySelector('h1');
       const name = h1 ? h1.textContent.trim() : '';
       if (name && name !== previousName) return { root, name };
       await sleep(200);
@@ -102,19 +154,13 @@
   }
 
   function extractLeadFromDetail(root, nome) {
-    const phoneButton = root ? root.querySelector(SELECTORS.phoneButton) : null;
-    const websiteLink = root ? root.querySelector(SELECTORS.websiteLink) : null;
-    const addressButton = root ? root.querySelector(SELECTORS.addressButton) : null;
-
-    const endereco = addressButton
-      ? (addressButton.getAttribute('aria-label') || '').replace(/^[^:]*:\s*/, '')
-      : '';
+    const endereco = extractAddress(root);
     const { cidade, estado } = parseCityState(endereco);
 
     return {
       nome,
-      telefoneCru: extractPhoneDigits(phoneButton),
-      site: websiteLink ? websiteLink.getAttribute('href') || '' : '',
+      telefoneCru: extractPhone(root),
+      site: extractWebsite(root),
       endereco,
       cidade,
       estado,
