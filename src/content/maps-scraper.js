@@ -71,6 +71,11 @@
     return getFeed();
   }
 
+  // Rótulos que aparecem como h1 mas não são nome de empresa nenhuma —
+  // ex.: cards de anúncio/patrocinado têm seu próprio h1 com esse texto,
+  // separado do h1 da empresa anunciada.
+  const NON_BUSINESS_HEADING_PATTERN = /^(patrocinado|sponsored|an[uú]ncio|ad)$/i;
+
   // A página do Maps costuma ter mais de um elemento role="main" (um para
   // a lista de resultados, outro para o painel de detalhes da empresa
   // aberta). document.querySelector pega sempre o primeiro — que muitas
@@ -83,7 +88,7 @@
     for (const h of headings) {
       if (feedEl && feedEl.contains(h)) continue;
       const text = h.textContent.trim();
-      if (text) return h;
+      if (text && !NON_BUSINESS_HEADING_PATTERN.test(text)) return h;
     }
     return null;
   }
