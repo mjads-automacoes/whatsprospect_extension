@@ -164,7 +164,11 @@ async function handleQueryDone(senderTabId) {
   }
 
   await saveJob(job);
-  await syncLeadsToSupabase(job);
+  // Não espera a sincronização com o Supabase terminar antes de navegar
+  // pra próxima combinação — mesmo com timeout, uma rede lenta faria a
+  // busca inteira esperar a cada combinação. A sincronização roda em
+  // paralelo; se falhar, só loga um aviso (ver syncLeadsToSupabase).
+  syncLeadsToSupabase(job);
   await navigateJobTab(job);
 }
 
