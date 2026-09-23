@@ -80,7 +80,11 @@ async function handleContentScriptReady(senderTabId) {
   if (!job || job.status !== JOB_STATUS.RUNNING || job.tabId !== senderTabId) {
     return { shouldRun: false };
   }
-  return { shouldRun: true, remainingTarget: job.target - job.leads.length };
+  return {
+    shouldRun: true,
+    remainingTarget: job.target - job.leads.length,
+    combo: currentCombo(job),
+  };
 }
 
 async function handleLeadFound(rawLead, senderTabId) {

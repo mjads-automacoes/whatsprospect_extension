@@ -251,8 +251,9 @@
     }
   }
 
-  async function runQuery(remainingTarget) {
-    log('Iniciando busca. Meta de leads restante:', remainingTarget);
+  async function runQuery(remainingTarget, combo) {
+    const comboLabel = combo ? `${combo.variacao} em ${combo.cidade}` : '(desconhecida)';
+    log('Iniciando busca. Meta de leads restante:', remainingTarget, '| Combinação esperada:', comboLabel, '| URL atual:', window.location.href);
     const feed = await waitForFeed();
     if (!feed) {
       if (isBlockedPage()) {
@@ -263,7 +264,14 @@
 
       const single = detectSingleResultPage();
       if (single) {
-        log('Nenhuma lista encontrada, mas a busca caiu direto numa página de empresa única:', single.name);
+        log(
+          'Nenhuma lista encontrada, mas a busca caiu direto numa página de empresa única:',
+          single.name,
+          '| Combinação que estava sendo buscada:',
+          comboLabel,
+          '| URL no momento da extração:',
+          window.location.href
+        );
         const lead = extractLeadFromDetail(single.root, single.name);
         log('Extraído:', {
           nome: lead.nome,
@@ -346,7 +354,7 @@
 
     log('Job ativo confirmado pelo background. Iniciando em instantes...');
     await randomDelay(400, 900);
-    await runQuery(response.remainingTarget);
+    await runQuery(response.remainingTarget, response.combo);
   }
 
   main();
