@@ -1,9 +1,14 @@
 import { generateKeywordVariations } from '../lib/keywordVariations.js';
 import { getJob, JOB_KEY, JOB_STATUS, currentCombo } from '../lib/mapsJob.js';
 import { leadsToCsv, buildCsvFileName } from '../lib/csv.js';
+import { getSession, SESSION_KEY } from '../lib/supabaseAuth.js';
+import { getSettings } from '../lib/storage.js';
 
 const els = {
   openOptionsBtn: document.getElementById('openOptionsBtn'),
+  accountStatus: document.getElementById('accountStatus'),
+  signInBtn: document.getElementById('signInBtn'),
+  signOutBtn: document.getElementById('signOutBtn'),
   form: document.getElementById('searchForm'),
   segmentoInput: document.getElementById('segmentoInput'),
   cidadesInput: document.getElementById('cidadesInput'),
@@ -232,11 +237,54 @@ els.exportCsvBtn.addEventListener('click', () => {
   });
 });
 
+async function renderAccountState() {
+  const settings = await getSettings();
+  if (!settings.supabaseUrl) {
+    els.accountStatus.textContent = 'Sincronização com Supabase não configurada (veja Opções).';
+    els.signInBtn.classList.add('hidden');
+    els.signOutBtn.classList.add('hidden');
+    return;
+  }
+
+  const session = await getSession();
+  if (session?.user) {
+    const label = session.user.email || session.user.id;
+    els.accountStatus.textContent = `Conectado: ${label}`;
+    els.signInBtn.classList.add('hidden');
+    els.signOutBtn.classList.remove('hidden');
+  } else {
+    els.accountStatus.textContent = 'Não conectado — leads ficam só neste navegador.';
+    els.signInBtn.classList.remove('hidden');
+    els.signOutBtn.classList.add('hidden');
+  }
+}
+
+els.signInBtn.addEventListener('click', async () => {
+  els.signInBtn.disabled = true;
+  els.accountStatus.textContent = 'Conectando...';
+  const response = await chrome.runtime.sendMessage({ type: 'SUPABASE_SIGN_IN' });
+  els.signInBtn.disabled = false;
+  if (!response?.ok) {
+    setStatus(`Erro ao entrar: ${response?.error || 'desconhecido'}`, true);
+  }
+  await renderAccountState();
+});
+
+els.signOutBtn.addEventListener('click', async () => {
+  await chrome.runtime.sendMessage({ type: 'SUPABASE_SIGN_OUT' });
+  await renderAccountState();
+});
+
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes[JOB_KEY]) {
+  if (area !== 'local') return;
+  if (changes[JOB_KEY]) {
     renderJobState(changes[JOB_KEY].newValue || null);
+  }
+  if (changes[SESSION_KEY]) {
+    renderAccountState();
   }
 });
 
 getJob().then(renderJobState);
+renderAccountState();
 updateBuscarBtnState();

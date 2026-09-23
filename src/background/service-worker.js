@@ -21,7 +21,9 @@ import {
 } from '../lib/mapsJob.js';
 import { formatBrazilianPhone, isValidBrazilianPhone } from '../lib/phoneUtils.js';
 import { dedupeKey } from '../lib/dedupe.js';
-import { getHistory, addLeadsToHistory } from '../lib/storage.js';
+import { getHistory, addLeadsToHistory, getSettings } from '../lib/storage.js';
+import { getSession, ensureValidAccessToken, signInWithGoogle, signOut } from '../lib/supabaseAuth.js';
+import { upsertLeads } from '../lib/supabaseLeads.js';
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
@@ -112,6 +114,32 @@ async function handleLeadFound(rawLead, senderTabId) {
   await saveJob(job);
 }
 
+async function syncLeadsToSupabase(job) {
+  try {
+    const settings = await getSettings();
+    if (!settings.supabaseUrl || !settings.supabaseAnonKey) return;
+
+    const session = await getSession();
+    if (!session?.user?.id) return;
+
+    const accessToken = await ensureValidAccessToken(settings.supabaseUrl, settings.supabaseAnonKey);
+    if (!accessToken) return;
+
+    const leadsWithKeys = job.leads.map((lead) => ({ key: dedupeKey(lead), lead }));
+    await upsertLeads(
+      {
+        supabaseUrl: settings.supabaseUrl,
+        anonKey: settings.supabaseAnonKey,
+        accessToken,
+        userId: session.user.id,
+      },
+      leadsWithKeys
+    );
+  } catch (error) {
+    console.warn('[WhatsProspect] Falha ao sincronizar leads com o Supabase:', error.message);
+  }
+}
+
 async function handleQueryDone(senderTabId) {
   const job = await getJob();
   if (!job || job.status !== JOB_STATUS.RUNNING || job.tabId !== senderTabId) return;
@@ -123,10 +151,12 @@ async function handleQueryDone(senderTabId) {
     await saveJob(job);
     const leadsWithKeys = job.leads.map((lead) => ({ key: dedupeKey(lead), lead }));
     await addLeadsToHistory(leadsWithKeys);
+    await syncLeadsToSupabase(job);
     return;
   }
 
   await saveJob(job);
+  await syncLeadsToSupabase(job);
   await navigateJobTab(job);
 }
 
@@ -136,6 +166,21 @@ async function handleBlocked(senderTabId) {
   job.status = JOB_STATUS.PAUSED_BLOCKED;
   await saveJob(job);
   await chrome.tabs.update(job.tabId, { active: true });
+}
+
+async function handleSignIn() {
+  try {
+    const settings = await getSettings();
+    const session = await signInWithGoogle(settings.supabaseUrl);
+    return { ok: true, user: session.user };
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
+async function handleSignOut() {
+  await signOut();
+  return { ok: true };
 }
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
@@ -180,6 +225,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case 'MAPS_BLOCKED':
       handleBlocked(tabId).then(() => sendResponse({ ok: true }));
+      return true;
+
+    case 'SUPABASE_SIGN_IN':
+      handleSignIn().then(sendResponse);
+      return true;
+
+    case 'SUPABASE_SIGN_OUT':
+      handleSignOut().then(sendResponse);
       return true;
 
     case 'SEND_TO_WEBHOOK':

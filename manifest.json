@@ -3,7 +3,7 @@
   "name": "WhatsProspect — Prospecção de Leads (Google Maps)",
   "version": "0.1.0",
   "description": "Busca empresas por segmento e cidade usando a Google Places API, remove duplicados, filtra por telefone e exporta leads em CSV.",
-  "default_locale": "pt_BR",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjiHXtjwbT87/o7nDlagMk6ySmkjhlJe7xz7l7XxiqsOWF+Qq0Hkw8OCdwpQDXC4iagP/ha78SBWbJq+BM0J93SlTE+sHNia+FyNJRR5qJRjoP3BJiiIiymCPQAsR8lQy4ugYKh8tsywknqw4GLsJpQMPr+qPKDLO0TudICkKAneAM6VHQQjOhPDrIWdzpoBXTwV4PdlREPRYblJbP4/YXQjN9K1J2nhBJO/whquhhsroHtmTzuyY6NhOsOxfOyQvtGYvDTw4LIgWFwJz89rPJwJWreN0ug8tx2XVGQ07OMjPYvNRfeT5tBlu0zy60n/ftHvJvOHrnX52lW2k0FJDcQIDAQAB",
   "action": {
     "default_popup": "src/popup/popup.html",
     "default_icon": {
@@ -23,10 +23,11 @@
     "type": "module"
   },
   "options_page": "src/options/options.html",
-  "permissions": ["storage", "downloads", "tabs"],
+  "permissions": ["storage", "downloads", "tabs", "identity"],
   "host_permissions": [
     "https://places.googleapis.com/*",
-    "https://www.google.com/maps/*"
+    "https://www.google.com/maps/*",
+    "https://*.supabase.co/*"
   ],
   "content_scripts": [
     {

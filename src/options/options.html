@@ -37,6 +37,49 @@
     </section>
 
     <section class="card">
+      <h2>Sincronização com Supabase (login Google)</h2>
+      <p class="text-muted">
+        Opcional. Conecte um projeto <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a>
+        para guardar os leads encontrados num banco na nuvem (além do
+        histórico local), com login via Google. Sem isso configurado, a
+        extensão continua funcionando normalmente, só que os leads ficam
+        salvos apenas neste navegador.
+      </p>
+
+      <ol class="text-muted setup-steps">
+        <li>Crie um projeto em <a href="https://app.supabase.com" target="_blank" rel="noopener">app.supabase.com</a> (grátis).</li>
+        <li>
+          No SQL Editor do projeto, rode o conteúdo de
+          <code>supabase/schema.sql</code> (deste repositório) para criar a
+          tabela de leads com Row Level Security.
+        </li>
+        <li>
+          Em <strong>Authentication → Providers → Google</strong>, habilite o
+          provedor e informe um Client ID/Secret OAuth criado no
+          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>
+          (tipo "Aplicativo Web", com o redirect URI de callback que o
+          próprio Supabase mostra na tela).
+        </li>
+        <li>
+          Em <strong>Authentication → URL Configuration → Redirect URLs</strong>,
+          adicione a URL abaixo (gerada por esta extensão):
+        </li>
+      </ol>
+      <p class="mono-box" id="redirectUrlBox">carregando...</p>
+
+      <label for="supabaseUrlInput">URL do projeto Supabase</label>
+      <input id="supabaseUrlInput" type="text" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" />
+
+      <label for="supabaseAnonKeyInput">Chave anônima (anon/public key)</label>
+      <input id="supabaseAnonKeyInput" type="password" placeholder="eyJhbGciOi..." autocomplete="off" />
+
+      <button id="toggleSupabaseKeyBtn" type="button" class="secondary-btn small">Mostrar</button>
+      <button id="saveSupabaseBtn" type="button" class="primary-btn">Salvar</button>
+
+      <p id="supabaseStatus" class="status-msg"></p>
+    </section>
+
+    <section class="card">
       <h2>Histórico de prospecção</h2>
       <p class="text-muted">
         Empresas já encontradas ficam salvas localmente para evitar que a

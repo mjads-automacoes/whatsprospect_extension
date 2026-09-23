@@ -6,6 +6,8 @@ const HISTORY_KEY = 'whatsprospect.history';
 const DEFAULT_SETTINGS = {
   apiKey: '',
   sheetsWebhookUrl: '', // reservado para integração futura (N8N / Google Sheets)
+  supabaseUrl: '',
+  supabaseAnonKey: '',
 };
 
 export async function getSettings() {

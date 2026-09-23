@@ -115,8 +115,12 @@ whatsprospect_extension/
 │       ├── csv.js                # geração do arquivo CSV
 │       ├── storage.js            # configurações + histórico (chrome.storage)
 │       ├── mapsJob.js            # estado do job de scraping do Maps
+│       ├── supabaseAuth.js       # login Google via Supabase Auth (chrome.identity)
+│       ├── supabaseLeads.js      # sincronização de leads com o Supabase
 │       ├── placesApi.js          # cliente da Google Places API (New) — não usado por padrão
 │       └── search.js             # orquestrador via Places API — não usado por padrão
+├── supabase/
+│   └── schema.sql                # tabela de leads + Row Level Security
 └── README.md
 ```
 
@@ -141,6 +145,43 @@ whatsprospect_extension/
    aba do Maps e clique em **Retomar após verificação**.
 6. Revise os resultados na tabela (atualizados em tempo real) e clique em
    **Exportar CSV** quando quiser.
+
+## Sincronização com Supabase (opcional, login com Google)
+
+Por padrão os leads ficam só no `chrome.storage.local` do navegador onde a
+extensão roda. Se você quiser um histórico centralizado na nuvem (acessível
+de qualquer computador, base para futuras integrações com N8N/CRM), pode
+conectar um projeto [Supabase](https://supabase.com) gratuito:
+
+1. Crie um projeto em [app.supabase.com](https://app.supabase.com).
+2. No **SQL Editor** do projeto, rode o conteúdo de `supabase/schema.sql`
+   deste repositório — cria a tabela `leads` com Row Level Security (cada
+   usuário só vê os próprios dados).
+3. Em **Authentication → Providers → Google**, habilite o provedor e
+   informe um Client ID/Secret OAuth do
+   [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   (tipo "Aplicativo Web"), usando o redirect URI de callback que o próprio
+   Supabase exibe naquela tela.
+4. Em **Authentication → URL Configuration → Redirect URLs**, adicione a
+   URL da extensão — a Options page mostra o valor exato
+   (`chrome.identity.getRedirectURL()`). Como o `manifest.json` já tem um
+   campo `"key"` fixo, essa URL é sempre:
+   `https://lejbdcmemfjnhnkjbilkdcobanlaobmf.chromiumapp.org/`
+   (só muda se você recarregar a extensão a partir de outra chave).
+5. Abra as **Opções** da extensão, cole a URL do projeto Supabase e a
+   **chave anônima (anon/public key)** — ambas em Project Settings → API no
+   painel do Supabase — e salve.
+6. No popup, clique em **Entrar com Google**. A partir daí, cada busca
+   concluída sincroniza os leads (por `upsert`, sem duplicar) com a tabela
+   `leads` do seu projeto.
+
+> A chave privada RSA usada para gerar esse `"key"` fixo no manifest não
+> fica no repositório (nunca comite chaves privadas). Ela só é necessária
+> se algum dia você quiser empacotar a extensão como `.crx` mantendo o
+> mesmo ID — guarde-a separadamente se for esse o caso.
+
+Isso é **totalmente opcional**: sem configurar nada aqui, a extensão
+continua funcionando exatamente como antes, só com o histórico local.
 
 ## Roadmap / preparado para o futuro
 
